@@ -40,7 +40,7 @@ namespace Downloader
 
         public string Email { get; set; }
         public string Password { get; set; }
-        public int MaxDownloadThread { get; set; } = 3;
+        //public int MaxDownloadThread { get; set; } = 3;
 
         public Engine(CancellationToken cancellationToken)
         {
@@ -74,10 +74,13 @@ namespace Downloader
                 return null;
             }
 
+            Task<string> materialsUrlTask = GetMaterialsUrl(document);
+
             string title = GetCourseTitle(document);
-            string materialsUrl = GetMaterialsUrl(document);
+            //string materialsUrl = await GetMaterialsUrl(document);
             var lessons = GetLessons(document);
 
+            IEnumerable<Task> lessonTasks = null;
             if (lessons?.Count > 0)
             {
                 //Parallel.ForEach(lessons,
@@ -104,14 +107,23 @@ namespace Downloader
                 //await Task.WhenAll(tasks);
 
 
-                Task[] tasks = lessons.Select(lesson => SetLessonVideoAsync(lesson)).ToArray();
-                await Task.WhenAll(tasks);
                 //Task[] tasks = new Task[lessons.Count];
                 //for (int i = 0; i < lessons.Count; i++)
                 //{
                 //    tasks[i] = await _taskFactory.StartNew(() => SetLessonVideoAsync(lessons[i]));
                 //}
                 //await Task.WhenAll(tasks);
+
+
+                //Task[] tasks = lessons.Select(lesson => SetLessonVideoAsync(lesson)).ToArray();
+                //await Task.WhenAll(tasks);
+                lessonTasks = lessons.Select(lesson => SetLessonVideoAsync(lesson));
+            }
+
+            string materialsUrl = await materialsUrlTask;
+            if (lessonTasks != null)
+            {
+                await Task.WhenAll(lessonTasks);
             }
 
             return new Course
@@ -255,14 +267,21 @@ namespace Downloader
         private string GetSafeFileName(string fileName)
         {
             const char replaceChar = '_';
+            return new string(fileName
+                .Trim()
+                .Select(@char => _invalidFileNameChars.Contains(@char) ? replaceChar : @char)
+                .ToArray());
 
-            string safeFileName = fileName;
-            foreach (char invalidChar in _invalidFileNameChars)
-            {
-                safeFileName = safeFileName.Replace(invalidChar, replaceChar);
-            }
 
-            return safeFileName;
+            //const char replaceChar = '_';
+
+            //string safeFileName = fileName.Trim();
+            //foreach (char invalidChar in _invalidFileNameChars)
+            //{
+            //    safeFileName = safeFileName.Replace(invalidChar, replaceChar);
+            //}
+
+            //return safeFileName;
         }
 
         private async Task<IHtmlDocument> GetDocumentAsync(Uri uri, Uri referrer = null)
@@ -414,13 +433,53 @@ namespace Downloader
             .FirstOrDefault()?
             .TextContent;
 
-        private string GetMaterialsUrl(IHtmlDocument document) => document
-            .GetElementsByClassName("btn-filled-orange btn-get-materials get-materials")
-            .FirstOrDefault()?
-            .GetAttribute("data-link");
+        private async Task<string> GetMaterialsUrl(IHtmlDocument document)
+        {
+            string linkToMaterials = document
+                .GetElementsByClassName("btn-filled-orange btn-get-materials get-materials")
+                .FirstOrDefault()?
+                .GetAttribute("data-link");
+
+            string materialsUrl = null;
+            if (Uri.IsWellFormedUriString(linkToMaterials, UriKind.Absolute))
+            {
+                //VideoIdResponse videoIdResponse = null;
+                Uri requestUri = new Uri(_baseUri, "Video/GetLinkToMaterials");
+
+                using (HttpClientHandler httpClientHandler = new HttpClientHandler() { CookieContainer = _cookies })
+                using (HttpClient httpClient = new HttpClient(httpClientHandler) { BaseAddress = _baseUri })
+                {
+                    //httpContent.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+                    var content = new
+                    {
+                        linkToMaterials
+                    };
+                    using (HttpResponseMessage response = await httpClient.PostAsJsonAsync(requestUri, content, _cancellationToken))
+                    {
+                        //response.EnsureSuccessStatusCode();
+                        if (response.IsSuccessStatusCode)
+                        {
+                            //materialsUrl = (await response.Content.ReadAsStringAsync()).Trim(new[] { '"' });
+                            string jsonString = await response.Content.ReadAsStringAsync();
+                            materialsUrl = JsonConvert.DeserializeObject<string>(jsonString);
+                        }
+                        else
+                        {
+                            // TODO: Зафиксировать ошибку.
+                        }
+                    }
+                }
+            }
+            //else
+            //{
+            //    materialsUrl = null;
+            //}
+
+            return materialsUrl;
+        }
+
         //private string GetMaterialsUrl(IHtmlDocument document) => document
-        //    .GetElementsByTagName("a")
-        //    .Where(item => item.ClassName.Equals("btn-filled-orange btn-get-materials get-materials", StringComparison.OrdinalIgnoreCase))
+        //    .GetElementsByClassName("btn-filled-orange btn-get-materials get-materials")
         //    .FirstOrDefault()?
         //    .GetAttribute("data-link");
 

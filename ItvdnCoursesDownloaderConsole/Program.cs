@@ -17,23 +17,115 @@ namespace ItvdnCoursesDownloaderConsole
         private static async Task Main(string[] args)
         {
             _parameters = new Parameters(args);
-
-            Console.WriteLine("Загрузка информации о курсе...");
-
             CancellationTokenSource cancellation = new CancellationTokenSource();
 
             _engine = new Engine(cancellation.Token)
             {
                 Email = _parameters.Email,
                 Password = _parameters.Password,
-                MaxDownloadThread = 3
+                //MaxDownloadThread = 3
             };
-            _course = await _engine.GetCourseAsync(_parameters.Uri);
+
+            string courseUri = _parameters.Uri;
+            while (!string.IsNullOrWhiteSpace(courseUri))
+            {
+                Console.WriteLine("Загрузка информации о курсе...");
+
+                bool result = await DownloadCourse(courseUri);
+                if (OneMoreCourseRequest())
+                {
+                    Console.Clear();
+                    Console.Write("Uri: ");
+                    courseUri = Console.ReadLine();
+                }
+                else
+                {
+                    courseUri = null;
+                }
+            }
+        }
+        //private static async Task Main(string[] args)
+        //{
+        //    _parameters = new Parameters(args);
+
+        //    Console.WriteLine("Загрузка информации о курсе...");
+
+        //    CancellationTokenSource cancellation = new CancellationTokenSource();
+
+        //    _engine = new Engine(cancellation.Token)
+        //    {
+        //        Email = _parameters.Email,
+        //        Password = _parameters.Password,
+        //        //MaxDownloadThread = 3
+        //    };
+        //    _course = await _engine.GetCourseAsync(_parameters.Uri);
+
+        //    if (_course == null)
+        //    {
+        //        Console.WriteLine("Данные не получены.");
+        //        return;
+        //    }
+        //    if (string.IsNullOrWhiteSpace(_course.Title))
+        //    {
+        //        Console.WriteLine("Не удалось извлечь данные курса.");
+        //    }
+        //    else
+        //    {
+        //        Console.Clear();
+        //        Console.BackgroundColor = ConsoleColor.Blue;
+        //        Console.WriteLine(_course.Title);
+        //        Console.ResetColor();
+
+        //        var (correctFiles, incorrectFiles) = _course.GetDownloadFiles();
+        //        if (incorrectFiles.Count > 0)
+        //        {
+        //            Console.WriteLine("Не удалось получить ссылки для следующих файлов:");
+        //            foreach (string fileTitle in incorrectFiles)
+        //            {
+        //                Console.WriteLine($" - {fileTitle}");
+        //            }
+        //        }
+        //        else
+        //        {
+        //            Console.WriteLine("Файлы курса:");
+        //            Console.CursorVisible = false;
+
+        //            await DownloadFiles(correctFiles);
+        //        }
+        //    }
+
+        //    Console.ReadKey();
+        //}
+
+        private static bool OneMoreCourseRequest()
+        {
+            Console.WriteLine("Загрузить ещё один курс?");
+            Console.WriteLine("1. Да");
+            Console.WriteLine("2. Нет");
+
+            while (true)
+            {
+                switch (Console.ReadKey().KeyChar)
+                {
+                    case '1':
+                        return true;
+                    case '2':
+                        return false;
+                    default:
+                        Console.Write("\a\b \b");
+                        break;
+                }
+            }
+        }
+
+        private static async Task<bool> DownloadCourse(string uri)
+        {
+            _course = await _engine.GetCourseAsync(uri);
 
             if (_course == null)
             {
                 Console.WriteLine("Данные не получены.");
-                return;
+                return false;
             }
             if (string.IsNullOrWhiteSpace(_course.Title))
             {
@@ -64,7 +156,7 @@ namespace ItvdnCoursesDownloaderConsole
                 }
             }
 
-            Console.ReadKey();
+            return true;
         }
 
         private static async Task DownloadFiles(List<DownloadFile> downloadFiles)
