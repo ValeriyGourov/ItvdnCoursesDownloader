@@ -57,9 +57,6 @@ namespace Downloader
             }
             _courseUri = new Url(courseUrl);
             _baseUri = new Uri(_courseUri.GetComponents(UriComponents.SchemeAndServer, UriFormat.Unescaped));
-            //videoFilesRequestUri = new Uri(baseUri, "Video/GetVideoFiles");
-            //authorizeRequestUri = new Uri(baseUri, "ru/Account/Login");
-            //courseUri.GetLeftPart(UriPartial.Authority)
 
             if (_cookies.Count == 0
                 && !await AuthorizeAsync())
@@ -77,7 +74,6 @@ namespace Downloader
             Task<string> materialsUrlTask = GetMaterialsUrl(document);
 
             string title = GetCourseTitle(document);
-            //string materialsUrl = await GetMaterialsUrl(document);
             var lessons = GetLessons(document);
 
             IEnumerable<Task> lessonTasks = null;
@@ -443,13 +439,11 @@ namespace Downloader
             string materialsUrl = null;
             if (Uri.IsWellFormedUriString(linkToMaterials, UriKind.Absolute))
             {
-                //VideoIdResponse videoIdResponse = null;
                 Uri requestUri = new Uri(_baseUri, "Video/GetLinkToMaterials");
 
                 using (HttpClientHandler httpClientHandler = new HttpClientHandler() { CookieContainer = _cookies })
                 using (HttpClient httpClient = new HttpClient(httpClientHandler) { BaseAddress = _baseUri })
                 {
-                    //httpContent.Headers.ContentType = new MediaTypeHeaderValue("application/json");
                     var content = new
                     {
                         linkToMaterials
@@ -459,7 +453,6 @@ namespace Downloader
                         //response.EnsureSuccessStatusCode();
                         if (response.IsSuccessStatusCode)
                         {
-                            //materialsUrl = (await response.Content.ReadAsStringAsync()).Trim(new[] { '"' });
                             string jsonString = await response.Content.ReadAsStringAsync();
                             materialsUrl = JsonConvert.DeserializeObject<string>(jsonString);
                         }
@@ -470,10 +463,6 @@ namespace Downloader
                     }
                 }
             }
-            //else
-            //{
-            //    materialsUrl = null;
-            //}
 
             return materialsUrl;
         }
@@ -541,64 +530,6 @@ namespace Downloader
             {
                 Title = $"{lesson.Number}. {GetSafeFileName(lesson.Title)}"
             };
-            //lesson.Video = GetVideoUri(javaScript);
-
-
-            //var content = new
-            //{
-            //    lessonId = lesson.Id
-            //};
-            //string jsonContent = JsonConvert.SerializeObject(content);
-            //byte[] byteArray = Encoding.UTF8.GetBytes(jsonContent);
-            //MemoryStream streamContent = new MemoryStream(byteArray);
-
-            //string json = null;
-            //Uri requestUri = new Uri(baseUri, "Video/GetVideoFiles");
-
-            //using (HttpClientHandler httpClientHandler = new HttpClientHandler() { CookieContainer = cookies })
-            //using (HttpClient httpClient = new HttpClient(httpClientHandler) { BaseAddress = baseUri })
-            //using (StreamContent httpContent = new StreamContent(streamContent))
-            //{
-            //    httpContent.Headers.ContentType = new MediaTypeHeaderValue("application/json");
-            //    HttpResponseMessage response = await httpClient.PostAsync(requestUri, httpContent, cancellationToken);
-
-            //    //response.EnsureSuccessStatusCode();
-            //    if (response.IsSuccessStatusCode)
-            //    {
-            //        json = await response.Content.ReadAsStringAsync();
-            //    }
-            //    else
-            //    {
-            //        // TODO: Зафиксировать ошибку.
-            //        return;
-            //    }
-            //}
-
-            //var typeExample = new
-            //{
-            //    Status = "",
-            //    Files = new[] { new { Link = "", FileQuality = 0 } }
-            //};
-            //var videoList = JsonConvert.DeserializeAnonymousType(json, typeExample);
-
-            //const string videoListStatusOk = "OK";
-            //if (videoList.Status.ToUpperInvariant() == videoListStatusOk)
-            //{
-            //    string videoUrl = videoList.Files
-            //        .OrderByDescending(file => file.FileQuality)
-            //        .Select(file => file.Link)
-            //        .FirstOrDefault();
-            //    if (string.IsNullOrWhiteSpace(videoUrl))
-            //    {
-            //        // TODO: Зафиксировать ошибку.
-            //        return;
-            //    }
-            //    else
-            //    {
-            //        // TODO: UrlDecode
-            //        lesson.VideoUri = new Uri(videoUrl);
-            //    }
-            //}
         }
 
         private Uri GetVideoUri(string javaScript)

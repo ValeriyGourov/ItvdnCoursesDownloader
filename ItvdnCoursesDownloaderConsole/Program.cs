@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Downloader;
@@ -101,11 +102,9 @@ namespace ItvdnCoursesDownloaderConsole
 
         private static async Task DownloadFiles(List<DownloadFile> downloadFiles)
         {
-            //Dictionary<DownloadFile, int> filesCursorsTops = new Dictionary<DownloadFile, int>();
             foreach (DownloadFile file in downloadFiles)
             {
                 int cursorTop = Console.CursorTop;
-                //filesCursorsTops.Add(file, cursorTop);
                 WriteFileInfo(file, cursorTop);
 
                 file.SizeChanged += (sender, e) =>
@@ -129,32 +128,6 @@ namespace ItvdnCoursesDownloaderConsole
                     //WriteFileInfo(downloadFile, cursorTop);
                 };
             }
-            //Dictionary<DownloadFile, int> filesCursorsTops = course.GetDownloadFiles()
-            //    .ToDictionary(key => key, _ => default(int));
-            //foreach (KeyValuePair<DownloadFile, int> item in filesCursorsTops)
-            //{
-            //    DownloadFile file = item.Key;
-            //    int cursorTop = Console.CursorTop;
-            //    filesCursorsTops[file] = cursorTop;
-            //    WriteFileInfo(file, cursorTop);
-
-            //    file.SizeChanged += (sender, e) =>
-            //    {
-            //        DownloadFile downloadFile = sender as DownloadFile;
-            //        //Console.WriteLine($"{downloadFile.Title}: {downloadFile.Size} байт");
-            //        WriteFileInfo(file, cursorTop);
-            //    };
-            //}
-
-            //var downloadFiles = course.GetDownloadFiles();
-            //downloadFiles
-            //    .ForEach(file => file.SizeChanged += (sender, e) =>
-            //    {
-            //        DownloadFile downloadFile = sender as DownloadFile;
-            //        Console.WriteLine($"{downloadFile.Title}: {downloadFile.Size} байт");
-            //    });
-            //.ForEach(file => file.SizeChanged += (sender, e) => Console.WriteLine($"{file.Title}: {file.Size} байт"));
-            //.ForEach(file => file.SizeChanged += (sender, size) => Console.WriteLine($"{file.Title}: {file.Size} байт"));
 
             int footerCursorTop = Console.CursorTop;
 
@@ -170,17 +143,22 @@ namespace ItvdnCoursesDownloaderConsole
             {
                 Console.WriteLine("Загружены не все файлы.");
 
-                //foreach (DownloadFile file in downloadFiles.Where(file => file.Error != null))
-                //{
-                //    Console.WriteLine($"{file.Title}:\n\t{file.Error.ToString()}");
-                //}
+                foreach (DownloadFile file in downloadFiles.Where(file => file.Status == DownloadFileStatus.Error))
+                {
+                    Exception exception = file.Error;
+                    var errorMessages = new List<string>();
+                    do
+                    {
+                        errorMessages.Add(exception.Message);
+                    } while ((exception = exception.InnerException) != null);
+
+                    Console.Write($"{file.Title}: ");
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine(string.Join(" -> ", errorMessages));
+                    Console.ResetColor();
+                }
             }
         }
-
-        //private static void File_ProgressPercentageChanged(object sender, EventArgs e)
-        //{
-        //    throw new NotImplementedException();
-        //}
 
         private static void WriteFileInfo(DownloadFile file, int cursorTop)
         {
@@ -189,8 +167,6 @@ namespace ItvdnCoursesDownloaderConsole
             ConsoleColor color;
             switch (file.Status)
             {
-                //case DownloadFileStatus.Wait:
-                //    break;
                 case DownloadFileStatus.InProgress:
                     color = ConsoleColor.Yellow;
                     break;
@@ -204,22 +180,6 @@ namespace ItvdnCoursesDownloaderConsole
                     color = Console.ForegroundColor;
                     break;
             }
-            //if (file.Error != null)
-            //{
-            //    color = ConsoleColor.Red;
-            //}
-            //else if (file.ProgressPercentage > 0)
-            //{
-            //    color = ConsoleColor.Yellow;
-            //}
-            //else if (file.ProgressPercentage == 100)
-            //{
-            //    color = ConsoleColor.Green;
-            //}
-            //else
-            //{
-            //    color = Console.ForegroundColor;
-            //}
 
             lock (_consoleWriterLock)
             {
