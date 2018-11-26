@@ -6,9 +6,6 @@ namespace ItvdnCoursesDownloaderConsole
 {
     internal class Parameters
     {
-        //private Dictionary<string, string> argDictionary;
-
-        public string Uri { get; set; }
         public string Email { get; set; }
         public string Password { get; set; }
         public string SavePath { get; set; }
@@ -71,9 +68,6 @@ namespace ItvdnCoursesDownloaderConsole
             if (string.IsNullOrWhiteSpace(setting))
             {
                 QuerySetting(name, out setting);
-                //Console.WriteLine(errorMessage);
-                //return false;
-                //Console.WriteLine();
             }
 
             return setting;

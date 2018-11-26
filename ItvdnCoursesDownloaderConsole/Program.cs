@@ -26,76 +26,16 @@ namespace ItvdnCoursesDownloaderConsole
                 //MaxDownloadThread = 3
             };
 
-            string courseUri = _parameters.Uri;
-            while (!string.IsNullOrWhiteSpace(courseUri))
+            do
             {
+                Console.Clear();
+                Console.Write("Адрес курса: ");
+                string courseUri = Console.ReadLine();
+
                 Console.WriteLine("Загрузка информации о курсе...");
-
                 bool result = await DownloadCourse(courseUri);
-                if (OneMoreCourseRequest())
-                {
-                    Console.Clear();
-                    Console.Write("Uri: ");
-                    courseUri = Console.ReadLine();
-                }
-                else
-                {
-                    courseUri = null;
-                }
-            }
+            } while (OneMoreCourseRequest());
         }
-        //private static async Task Main(string[] args)
-        //{
-        //    _parameters = new Parameters(args);
-
-        //    Console.WriteLine("Загрузка информации о курсе...");
-
-        //    CancellationTokenSource cancellation = new CancellationTokenSource();
-
-        //    _engine = new Engine(cancellation.Token)
-        //    {
-        //        Email = _parameters.Email,
-        //        Password = _parameters.Password,
-        //        //MaxDownloadThread = 3
-        //    };
-        //    _course = await _engine.GetCourseAsync(_parameters.Uri);
-
-        //    if (_course == null)
-        //    {
-        //        Console.WriteLine("Данные не получены.");
-        //        return;
-        //    }
-        //    if (string.IsNullOrWhiteSpace(_course.Title))
-        //    {
-        //        Console.WriteLine("Не удалось извлечь данные курса.");
-        //    }
-        //    else
-        //    {
-        //        Console.Clear();
-        //        Console.BackgroundColor = ConsoleColor.Blue;
-        //        Console.WriteLine(_course.Title);
-        //        Console.ResetColor();
-
-        //        var (correctFiles, incorrectFiles) = _course.GetDownloadFiles();
-        //        if (incorrectFiles.Count > 0)
-        //        {
-        //            Console.WriteLine("Не удалось получить ссылки для следующих файлов:");
-        //            foreach (string fileTitle in incorrectFiles)
-        //            {
-        //                Console.WriteLine($" - {fileTitle}");
-        //            }
-        //        }
-        //        else
-        //        {
-        //            Console.WriteLine("Файлы курса:");
-        //            Console.CursorVisible = false;
-
-        //            await DownloadFiles(correctFiles);
-        //        }
-        //    }
-
-        //    Console.ReadKey();
-        //}
 
         private static bool OneMoreCourseRequest()
         {
