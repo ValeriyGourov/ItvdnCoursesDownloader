@@ -45,15 +45,11 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Engine.cs" />
-    <Compile Include="LimitedConcurrencyLevelTaskScheduler.cs" />
     <Compile Include="Models\Course.cs" />
     <Compile Include="Models\DownloadFile.cs" />
     <Compile Include="Models\DownloadFileStatus.cs" />
     <Compile Include="Models\Lesson.cs" />
     <Compile Include="Models\Responses\VideoIdResponse.cs" />
-    <Compile Include="Models\SizeChangedEventArgs.cs" />
-    <Compile Include="Models\VideoFileListItem.cs" />
-    <Compile Include="Models\VideoList.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
