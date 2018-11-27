@@ -162,7 +162,7 @@ namespace ItvdnCoursesDownloaderConsole
 
         private static void WriteFileInfo(DownloadFile file, int cursorTop)
         {
-            string fileInfo = $"{file.ProgressPercentage,4:D}% из {file.Size} байт: {file.Title}";
+            string fileInfo = $"{file.ProgressPercentage,4:D}% из {file.FormattedSize}: {file.Title}";
 
             ConsoleColor color;
             switch (file.Status)

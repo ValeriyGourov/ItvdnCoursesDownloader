@@ -1,11 +1,11 @@
 ﻿using System;
 using System.IO;
+using Downloader.Utilities;
 
 namespace Downloader.Models
 {
     public sealed class DownloadFile
     {
-        //private readonly string _savePath;
         private string _title;
         private long _size;
         private int _progressPercentage;
@@ -54,11 +54,15 @@ namespace Downloader.Models
             internal set
             {
                 _size = value;
+                FormattedSize = FileSizeFormatHelper.FormatByteSize(_size);
                 SizeChanged?.Invoke(this, EventArgs.Empty);
-                //SizeChanged?.Invoke(this, _size);
-                //SizeChanged?.Invoke(this, new DownloadFileSizeChangedEventArgs() { Size = _size });
             }
         }
+
+        /// <summary>
+        /// Форматированное представление размера файла.
+        /// </summary>
+        public string FormattedSize { get; private set; }
 
         public Exception Error
         {
@@ -76,7 +80,6 @@ namespace Downloader.Models
         public DownloadFileStatus Status
         {
             get => _status;
-            /*internal*/
             private set
             {
                 _status = value;
@@ -88,15 +91,12 @@ namespace Downloader.Models
         public event EventHandler SizeChanged;
         public event EventHandler StatusChanged;
 
-        internal DownloadFile(Uri uri/*, string savePath*/)
+        internal DownloadFile(Uri uri)
         {
             Uri = uri;
-            //this._savePath = savePath;
 
             FileInfo fileInfo = new FileInfo(uri.AbsolutePath);
             Extension = fileInfo.Extension;
-
-            //Status = DownloadFileStatus.Wait;
         }
     }
 }

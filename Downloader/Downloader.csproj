@@ -51,6 +51,8 @@
     <Compile Include="Models\Lesson.cs" />
     <Compile Include="Models\Responses\VideoIdResponse.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Utilities\FileSizeFormatHelper.cs" />
+    <Compile Include="Utilities\NativeMethods.cs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="AngleSharp">
