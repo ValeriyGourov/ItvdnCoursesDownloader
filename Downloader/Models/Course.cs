@@ -6,82 +6,68 @@ namespace Downloader.Models
 {
     public sealed class Course
     {
+        private List<DownloadFile> _correctFiles;
+        private List<string> _incorrectFiles;
+
         public string Title { get; internal set; }
         public DownloadFile Materials { get; internal set; }
-        //public Uri MaterialsUri { get; internal set; }
         public List<Lesson> Lessons { get; internal set; }
         public static string MaterialsTitle => "Материалы курса";
+
+        public List<DownloadFile> CorrectFiles
+        {
+            get
+            {
+                if (_correctFiles == null)
+                {
+                    SetDownloadFiles();
+                }
+                return _correctFiles;
+            }
+        }
+
+        public List<string> IncorrectFiles
+        {
+            get
+            {
+                if (_incorrectFiles == null)
+                {
+                    SetDownloadFiles();
+                }
+                return _incorrectFiles;
+            }
+        }
 
         internal Course()
         {
         }
 
-        public (List<DownloadFile> CorrectFiles, List<string> IncorrectFiles) GetDownloadFiles()
+        private void SetDownloadFiles()
         {
             Dictionary<string, DownloadFile> downloadFiles = Lessons
-                .ToDictionary(key => key.Title, element => element.Video);
+                .ToDictionary(key => $"({key.Number}) {key.Title}", element => element.Video);
             if (Materials != null)
             {
                 // Файла материалов курса может и не быть.
                 downloadFiles.Add(MaterialsTitle, Materials);
             }
-            //downloadFiles.Add(MaterialsTitle, Materials);
 
-            var correctFiles = new List<DownloadFile>();
-            var incorrectFiles = new List<string>();
+            _correctFiles = new List<DownloadFile>();
+            _incorrectFiles = new List<string>();
 
             foreach (var item in downloadFiles)
             {
                 DownloadFile file = item.Value;
                 if (file != null)
                 {
-                    correctFiles.Add(file);
+                    _correctFiles.Add(file);
                 }
                 else
                 {
-                    incorrectFiles.Add(item.Key);
+                    _incorrectFiles.Add(item.Key);
                 }
             }
-
-
-            //if (Materials != null)
-            //{
-            //    AddCorrectFile(Materials, correctFiles);
-            //}
-            //else
-            //{
-            //    AddIncorrectFile(MaterialsTitle, incorrectFiles);
-            //}
-
-            //foreach (Lesson lesson in Lessons)
-            //{
-            //    if (lesson.Video != null)
-            //    {
-            //        AddCorrectFile(lesson.Video, correctFiles);
-            //    }
-            //    else
-            //    {
-            //        AddIncorrectFile(lesson.Title, incorrectFiles);
-            //    }
-            //}
-
-            return (correctFiles, incorrectFiles);
         }
-
-        //private void AddCorrectFile(DownloadFile downloadFile, List<DownloadFile> correctFiles) => correctFiles.Add(downloadFile);
-
-        //private void AddIncorrectFile(string title, List<string> incorrectFiles) => incorrectFiles.Add(title);
-
-        //public List<DownloadFile> GetDownloadFiles()
-        //{
-        //    var downloadFiles = Lessons
-        //        .Select(lesson => lesson.Video)
-        //        .ToList();
-        //    downloadFiles.Insert(0, Materials);
-        //    //downloadFiles.Add(Materials);
-
-        //    return downloadFiles;
-        //}
 
         internal void ChangeSavePath(string savePath)
         {
@@ -90,7 +76,7 @@ namespace Downloader.Models
                 throw new ArgumentNullException(nameof(savePath));
             }
 
-            GetDownloadFiles().CorrectFiles.ForEach(file => file.SavePath = savePath);
+            CorrectFiles.ForEach(file => file.SavePath = savePath);
         }
     }
 }

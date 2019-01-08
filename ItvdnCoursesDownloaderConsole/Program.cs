@@ -46,10 +46,6 @@ namespace ItvdnCoursesDownloaderConsole
 
                     Console.Error.WriteLine($"Ошибка: {GetErrorDescription(exception)}");
                     Console.ResetColor();
-                    //Console.WriteLine("Нажмите любую клавишу для завершения работы приложения...");
-                    //Console.ReadKey();
-
-                    //break;
                 }
             } while (OneMoreCourseRequest());
         }
@@ -95,11 +91,10 @@ namespace ItvdnCoursesDownloaderConsole
                 Console.WriteLine(_course.Title);
                 Console.ResetColor();
 
-                var (correctFiles, incorrectFiles) = _course.GetDownloadFiles();
-                if (incorrectFiles.Count > 0)
+                if (_course.IncorrectFiles.Count > 0)
                 {
                     Console.WriteLine("Не удалось получить ссылки для следующих файлов:");
-                    foreach (string fileTitle in incorrectFiles)
+                    foreach (string fileTitle in _course.IncorrectFiles)
                     {
                         Console.WriteLine($" - {fileTitle}");
                     }
@@ -109,7 +104,7 @@ namespace ItvdnCoursesDownloaderConsole
                     Console.WriteLine("Файлы курса:");
                     Console.CursorVisible = false;
 
-                    await DownloadFiles(correctFiles);
+                    await DownloadFiles(_course.CorrectFiles);
                 }
             }
 

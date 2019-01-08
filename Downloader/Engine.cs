@@ -199,8 +199,9 @@ namespace Downloader
 
 
 
-            Task[] tasks = course.GetDownloadFiles().CorrectFiles
-                 .Select(file => DownloadFileAsync(file)).ToArray();
+            Task[] tasks = course.CorrectFiles
+                 .Select(file => DownloadFileAsync(file))
+                 .ToArray();
             Task waitTask = Task.WhenAll(tasks);
 
             bool succsess = true;
