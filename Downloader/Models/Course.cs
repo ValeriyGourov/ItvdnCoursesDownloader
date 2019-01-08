@@ -20,11 +20,12 @@ namespace Downloader.Models
         {
             Dictionary<string, DownloadFile> downloadFiles = Lessons
                 .ToDictionary(key => key.Title, element => element.Video);
-            //var downloadFiles = Lessons
-            //    .Select(lesson => lesson.Video)
-            //    .ToDictionary(key => key.Title, element => element);
-            downloadFiles.Add(MaterialsTitle, Materials);
-            //downloadFiles.Add(Materials);
+            if (Materials != null)
+            {
+                // Файла материалов курса может и не быть.
+                downloadFiles.Add(MaterialsTitle, Materials);
+            }
+            //downloadFiles.Add(MaterialsTitle, Materials);
 
             var correctFiles = new List<DownloadFile>();
             var incorrectFiles = new List<string>();

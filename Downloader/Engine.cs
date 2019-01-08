@@ -11,6 +11,7 @@ using AngleSharp;
 using AngleSharp.Dom.Html;
 using AngleSharp.Io.Network;
 using AngleSharp.Parser.Html;
+using Downloader.Infrastructure;
 using Downloader.Models;
 using Downloader.Models.Responses;
 using Jint.Native;
@@ -71,7 +72,7 @@ namespace Downloader
                 return null;
             }
 
-            Task<string> materialsUrlTask = GetMaterialsUrl(document);
+            Task<Uri> materialsUriTask = GetMaterialsUri(document);
 
             string title = GetCourseTitle(document);
             var lessons = GetLessons(document);
@@ -116,7 +117,7 @@ namespace Downloader
                 lessonTasks = lessons.Select(lesson => SetLessonVideoAsync(lesson));
             }
 
-            string materialsUrl = await materialsUrlTask;
+            Uri materialsUri = await materialsUriTask;
             if (lessonTasks != null)
             {
                 await Task.WhenAll(lessonTasks);
@@ -126,7 +127,7 @@ namespace Downloader
             {
                 Title = title,
                 Lessons = lessons,
-                Materials = materialsUrl == null ? null : new DownloadFile(new Uri(materialsUrl)) { Title = Course.MaterialsTitle }
+                Materials = materialsUri == null ? null : new DownloadFile(materialsUri) { Title = Course.MaterialsTitle }
             };
         }
 
@@ -429,12 +430,25 @@ namespace Downloader
             .FirstOrDefault()?
             .TextContent;
 
-        private async Task<string> GetMaterialsUrl(IHtmlDocument document)
+        private async Task<Uri> GetMaterialsUri(IHtmlDocument document)
         {
-            string linkToMaterials = document
+            const string className = "materials-buttons-wrapper";
+            var materialsButtonsWrapperTag = document
+                .GetElementsByClassName(className)
+                .FirstOrDefault();
+            if (materialsButtonsWrapperTag == null)
+            {
+                throw new PageParseException("Изменилась структура web-страницы. Невозможно определить блок с ссылкой для скачивания материалов курса.", className);
+            }
+
+            string linkToMaterials = materialsButtonsWrapperTag
                 .GetElementsByClassName("btn-filled-orange btn-get-materials get-materials")
                 .FirstOrDefault()?
                 .GetAttribute("data-link");
+            //string linkToMaterials = document
+            //    .GetElementsByClassName("btn-filled-orange btn-get-materials get-materials")
+            //    .FirstOrDefault()?
+            //    .GetAttribute("data-link");
 
             string materialsUrl = null;
             if (Uri.IsWellFormedUriString(linkToMaterials, UriKind.Absolute))
@@ -464,13 +478,8 @@ namespace Downloader
                 }
             }
 
-            return materialsUrl;
+            return materialsUrl == null ? null : new Uri(materialsUrl);
         }
-
-        //private string GetMaterialsUrl(IHtmlDocument document) => document
-        //    .GetElementsByClassName("btn-filled-orange btn-get-materials get-materials")
-        //    .FirstOrDefault()?
-        //    .GetAttribute("data-link");
 
         private async Task SetLessonVideoAsync(Lesson lesson)
         {

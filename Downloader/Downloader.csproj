@@ -45,6 +45,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Engine.cs" />
+    <Compile Include="Infrastructure\PageParseException.cs" />
     <Compile Include="Models\Course.cs" />
     <Compile Include="Models\DownloadFile.cs" />
     <Compile Include="Models\DownloadFileStatus.cs" />

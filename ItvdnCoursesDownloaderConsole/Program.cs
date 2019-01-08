@@ -34,7 +34,23 @@ namespace ItvdnCoursesDownloaderConsole
                 string courseUri = Console.ReadLine();
 
                 Console.WriteLine("Загрузка информации о курсе...");
-                bool result = await DownloadCourse(courseUri);
+
+                try
+                {
+                    bool result = await DownloadCourse(courseUri);
+                }
+                catch (Exception exception)
+                {
+                    Console.BackgroundColor = ConsoleColor.Black;
+                    Console.ForegroundColor = ConsoleColor.Red;
+
+                    Console.Error.WriteLine($"Ошибка: {GetErrorDescription(exception)}");
+                    Console.ResetColor();
+                    //Console.WriteLine("Нажмите любую клавишу для завершения работы приложения...");
+                    //Console.ReadKey();
+
+                    //break;
+                }
             } while (OneMoreCourseRequest());
         }
 
@@ -145,17 +161,21 @@ namespace ItvdnCoursesDownloaderConsole
 
                 foreach (DownloadFile file in downloadFiles.Where(file => file.Status == DownloadFileStatus.Error))
                 {
-                    Exception exception = file.Error;
-                    var errorMessages = new List<string>();
-                    do
-                    {
-                        errorMessages.Add(exception.Message);
-                    } while ((exception = exception.InnerException) != null);
-
                     Console.Write($"{file.Title}: ");
                     Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine(string.Join(" -> ", errorMessages));
+                    Console.WriteLine(GetErrorDescription(file.Error));
                     Console.ResetColor();
+                    //Exception exception = file.Error;
+                    //var errorMessages = new List<string>();
+                    //do
+                    //{
+                    //    errorMessages.Add(exception.Message);
+                    //} while ((exception = exception.InnerException) != null);
+
+                    //Console.Write($"{file.Title}: ");
+                    //Console.ForegroundColor = ConsoleColor.Red;
+                    //Console.WriteLine(string.Join(" -> ", errorMessages));
+                    //Console.ResetColor();
                 }
             }
         }
@@ -188,6 +208,18 @@ namespace ItvdnCoursesDownloaderConsole
                 Console.WriteLine(fileInfo);
                 Console.ResetColor();
             }
+        }
+
+        private static string GetErrorDescription(Exception exception)
+        {
+            Exception currentException = exception;
+            var errorMessages = new List<string>();
+            do
+            {
+                errorMessages.Add(currentException.Message);
+            } while ((currentException = currentException.InnerException) != null);
+
+            return string.Join(" -> ", errorMessages);
         }
     }
 }
