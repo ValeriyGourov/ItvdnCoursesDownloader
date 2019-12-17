@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -467,7 +468,7 @@ namespace Downloader
 					{
 						linkToMaterials
 					};
-					using (HttpResponseMessage response = await httpClient.PostAsJsonAsync(requestUri, content, _cancellationToken))
+					using (HttpResponseMessage response = await PostAsJsonAsync(httpClient, requestUri, content))
 					{
 						//response.EnsureSuccessStatusCode();
 						if (response.IsSuccessStatusCode)
@@ -507,12 +508,13 @@ namespace Downloader
 				{
 					lessonId = lesson.Id
 				};
-				using (HttpResponseMessage response = await httpClient.PostAsJsonAsync(requestUri, content, _cancellationToken))
+				using (HttpResponseMessage response = await PostAsJsonAsync(httpClient, requestUri, content))
 				{
 					//response.EnsureSuccessStatusCode();
 					if (response.IsSuccessStatusCode)
 					{
-						videoIdResponse = await response.Content.ReadAsAsync<VideoIdResponse>(_cancellationToken);
+						string responseContent = await response.Content.ReadAsStringAsync();
+						videoIdResponse = JsonConvert.DeserializeObject<VideoIdResponse>(responseContent);
 					}
 					else
 					{
@@ -702,6 +704,16 @@ namespace Downloader
 			//FileWebRequest.
 			//fileWebRequest.AuthenticationLevel=System.Net.Security.AuthenticationLevel.MutualAuthRequested
 			//fileWebRequest.get
+		}
+
+		[System.Diagnostics.CodeAnalysis.SuppressMessage("AsyncUsage", "AsyncFixer01:Unnecessary async/await usage", Justification = "<Ожидание>")]
+		private async Task<HttpResponseMessage> PostAsJsonAsync(HttpClient httpClient, Uri requestUri, object content)
+		{
+			//string jsonContent = System.Text.Json.JsonSerializer.Serialize(content);
+			string jsonContent = JsonConvert.SerializeObject(content);
+			using HttpContent httpContent = new StringContent(jsonContent, Encoding.UTF8, "application/json");
+
+			return await httpClient.PostAsync(requestUri, httpContent, _cancellationToken);
 		}
 
 		//private /*async*/ Task/*<bool>*//*bool*/ DownloadFileAsync(Uri fileUri, string savePath, string fileName)
