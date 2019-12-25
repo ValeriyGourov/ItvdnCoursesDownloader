@@ -448,7 +448,7 @@ namespace Downloader
 			}
 
 			string linkToMaterials = materialsButtonsWrapperTag
-				.GetElementsByClassName("btn-filled-orange btn-get-materials get-materials")
+				.GetElementsByClassName("btn-filled-green btn-get-sertificate get-materials")
 				.FirstOrDefault()?
 				.GetAttribute("data-link");
 			//string linkToMaterials = document
