@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -10,9 +11,9 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using AngleSharp;
+using AngleSharp.Dom;
 using AngleSharp.Html.Dom;
 using AngleSharp.Html.Parser;
-using AngleSharp.Io.Network;
 
 using Downloader.Infrastructure;
 using Downloader.Models;
@@ -30,7 +31,7 @@ namespace Downloader
 	{
 		private /*readonly*/ Uri _courseUri;
 		private readonly CancellationToken _cancellationToken /*= new CancellationToken()*/;
-		private readonly HttpClientRequester _httpClientRequester = new HttpClientRequester();
+		//private readonly HttpClientRequester _httpClientRequester = new HttpClientRequester();
 		private CookieContainer _cookies = new CookieContainer();
 		//private readonly TaskFactory _taskFactory;
 		//private readonly object lesson;
@@ -80,7 +81,7 @@ namespace Downloader
 			Task<Uri> materialsUriTask = GetMaterialsUri(document);
 
 			string title = GetCourseTitle(document);
-			var lessons = GetLessons(document);
+			List<Lesson> lessons = GetLessons(document);
 
 			IEnumerable<Task> lessonTasks = null;
 			if (lessons?.Count > 0)
@@ -145,7 +146,7 @@ namespace Downloader
 			//    safeCourseTitle = safeCourseTitle.Replace(invalidChar, replaceChar);
 			//}
 
-			string safeCourseTitle = GetSafeFileName(course.Title);
+			string safeCourseTitle = GetSafeFileName(course?.Title);
 			string courseSavePath = Path.Combine(savePath, safeCourseTitle);
 			//DirectoryInfo directoryInfo = new DirectoryInfo(courseSavePath);
 			//directoryInfo.Create
@@ -381,7 +382,7 @@ namespace Downloader
 
 		private List<Lesson> GetLessons(IHtmlDocument document)
 		{
-			var query =
+			IEnumerable<Lesson> query =
 				from videoLessonItem in document.GetElementsByClassName("video-lesson-item")
 				let childrenTags = videoLessonItem.Children
 				let linkTag = childrenTags
@@ -396,7 +397,7 @@ namespace Downloader
 					Number = Convert.ToInt32(linkTag?
 						.GetElementsByClassName("lesson-number")
 						.FirstOrDefault()?
-						.TextContent),
+						.TextContent, CultureInfo.InvariantCulture),
 					Title = linkTag?
 						.GetElementsByClassName("lsn-name-wrapper")
 						.FirstOrDefault()?
@@ -439,7 +440,7 @@ namespace Downloader
 		private async Task<Uri> GetMaterialsUri(IHtmlDocument document)
 		{
 			const string className = "materials-buttons-wrapper";
-			var materialsButtonsWrapperTag = document
+			IElement materialsButtonsWrapperTag = document
 				.GetElementsByClassName(className)
 				.FirstOrDefault();
 			if (materialsButtonsWrapperTag == null)
@@ -461,26 +462,24 @@ namespace Downloader
 			{
 				Uri requestUri = new Uri(_baseUri, "Video/GetLinkToMaterials");
 
-				using (HttpClientHandler httpClientHandler = new HttpClientHandler() { CookieContainer = _cookies })
-				using (HttpClient httpClient = new HttpClient(httpClientHandler) { BaseAddress = _baseUri })
+				using HttpClientHandler httpClientHandler = new HttpClientHandler() { CookieContainer = _cookies };
+				using HttpClient httpClient = new HttpClient(httpClientHandler) { BaseAddress = _baseUri };
+
+				var content = new
 				{
-					var content = new
-					{
-						linkToMaterials
-					};
-					using (HttpResponseMessage response = await PostAsJsonAsync(httpClient, requestUri, content))
-					{
-						//response.EnsureSuccessStatusCode();
-						if (response.IsSuccessStatusCode)
-						{
-							string jsonString = await response.Content.ReadAsStringAsync();
-							materialsUrl = JsonConvert.DeserializeObject<string>(jsonString);
-						}
-						else
-						{
-							// TODO: Зафиксировать ошибку.
-						}
-					}
+					linkToMaterials
+				};
+
+				using HttpResponseMessage response = await PostAsJsonAsync(httpClient, requestUri, content);
+				//response.EnsureSuccessStatusCode();
+				if (response.IsSuccessStatusCode)
+				{
+					string jsonString = await response.Content.ReadAsStringAsync();
+					materialsUrl = JsonConvert.DeserializeObject<string>(jsonString);
+				}
+				else
+				{
+					// TODO: Зафиксировать ошибку.
 				}
 			}
 
@@ -508,19 +507,18 @@ namespace Downloader
 				{
 					lessonId = lesson.Id
 				};
-				using (HttpResponseMessage response = await PostAsJsonAsync(httpClient, requestUri, content))
+
+				using HttpResponseMessage response = await PostAsJsonAsync(httpClient, requestUri, content);
+				//response.EnsureSuccessStatusCode();
+				if (response.IsSuccessStatusCode)
 				{
-					//response.EnsureSuccessStatusCode();
-					if (response.IsSuccessStatusCode)
-					{
-						string responseContent = await response.Content.ReadAsStringAsync();
-						videoIdResponse = JsonConvert.DeserializeObject<VideoIdResponse>(responseContent);
-					}
-					else
-					{
-						// TODO: Зафиксировать ошибку.
-						return;
-					}
+					string responseContent = await response.Content.ReadAsStringAsync();
+					videoIdResponse = JsonConvert.DeserializeObject<VideoIdResponse>(responseContent);
+				}
+				else
+				{
+					// TODO: Зафиксировать ошибку.
+					return;
 				}
 			}
 
@@ -618,7 +616,7 @@ namespace Downloader
 
 		private async Task<bool> AuthorizeAsync()
 		{
-			var content = new Dictionary<string, string>
+			Dictionary<string, string> content = new Dictionary<string, string>
 			{
 				{ "Email", Email },
 				{ "Password", Password }
@@ -661,40 +659,38 @@ namespace Downloader
 
 
 
-			using (WebClient webClient = new WebClient())
-			{
-				_cancellationToken.Register(webClient.CancelAsync);
-				webClient.Headers.Add(HttpRequestHeader.Cookie, _cookies.GetCookieHeader(_baseUri));
+			using WebClient webClient = new WebClient();
 
-				webClient.DownloadFileCompleted += (sender, args) =>
+			_cancellationToken.Register(webClient.CancelAsync);
+			webClient.Headers.Add(HttpRequestHeader.Cookie, _cookies.GetCookieHeader(_baseUri));
+
+			webClient.DownloadFileCompleted += (sender, args) =>
+			{
+				downloadFile.Error = args.Error;
+				//if (downloadFile.Error == null)
+				//{
+				//    downloadFile.Status = DownloadFileStatus.Completed;
+				//}
+			};
+			webClient.DownloadProgressChanged += (sender, args) =>
+			{
+				if (downloadFile.Size == 0)
 				{
-					downloadFile.Error = args.Error;
-					//if (downloadFile.Error == null)
-					//{
-					//    downloadFile.Status = DownloadFileStatus.Completed;
-					//}
-				};
-				webClient.DownloadProgressChanged += (sender, args) =>
-				{
-					if (downloadFile.Size == 0)
-					{
-						downloadFile.Size = args.TotalBytesToReceive;
-					}
-					//downloadFile.Status = DownloadFileStatus.InProgress;
-					downloadFile.ProgressPercentage = args.ProgressPercentage;
-				};
-				try
-				{
-					//webClient.DownloadFileAsync(downloadFile.Uri, downloadFile.TargetFileFullName);
-					return webClient.DownloadFileTaskAsync(downloadFile.Uri, downloadFile.TargetFileFullName);
+					downloadFile.Size = args.TotalBytesToReceive;
 				}
-				catch (Exception exception)
-				{
-					downloadFile.Error = exception;
-					//downloadFile.Status = DownloadFileStatus.Error;
-					//return false;
-					return Task.FromResult<object>(null);
-				}
+				//downloadFile.Status = DownloadFileStatus.InProgress;
+				downloadFile.ProgressPercentage = args.ProgressPercentage;
+			};
+			try
+			{
+				return webClient.DownloadFileTaskAsync(downloadFile.Uri, downloadFile.TargetFileFullName);
+			}
+			catch (Exception exception)
+			{
+				downloadFile.Error = exception;
+				//downloadFile.Status = DownloadFileStatus.Error;
+				//return false;
+				return Task.FromResult<object>(null);
 			}
 
 			//return true;
@@ -707,14 +703,23 @@ namespace Downloader
 		}
 
 		[System.Diagnostics.CodeAnalysis.SuppressMessage("AsyncUsage", "AsyncFixer01:Unnecessary async/await usage", Justification = "<Ожидание>")]
-		private async Task<HttpResponseMessage> PostAsJsonAsync(HttpClient httpClient, Uri requestUri, object content)
+		private Task<HttpResponseMessage> PostAsJsonAsync(HttpClient httpClient, Uri requestUri, object content)
 		{
 			//string jsonContent = System.Text.Json.JsonSerializer.Serialize(content);
 			string jsonContent = JsonConvert.SerializeObject(content);
 			using HttpContent httpContent = new StringContent(jsonContent, Encoding.UTF8, "application/json");
 
-			return await httpClient.PostAsync(requestUri, httpContent, _cancellationToken);
+			return httpClient.PostAsync(requestUri, httpContent, _cancellationToken);
 		}
+		//[System.Diagnostics.CodeAnalysis.SuppressMessage("AsyncUsage", "AsyncFixer01:Unnecessary async/await usage", Justification = "<Ожидание>")]
+		//private async Task<HttpResponseMessage> PostAsJsonAsync(HttpClient httpClient, Uri requestUri, object content)
+		//{
+		//	//string jsonContent = System.Text.Json.JsonSerializer.Serialize(content);
+		//	string jsonContent = JsonConvert.SerializeObject(content);
+		//	using HttpContent httpContent = new StringContent(jsonContent, Encoding.UTF8, "application/json");
+
+		//	return await httpClient.PostAsync(requestUri, httpContent, _cancellationToken);
+		//}
 
 		//private /*async*/ Task/*<bool>*//*bool*/ DownloadFileAsync(Uri fileUri, string savePath, string fileName)
 		//{
