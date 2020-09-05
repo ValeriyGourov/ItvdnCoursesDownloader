@@ -120,6 +120,18 @@ namespace Downloader
 
 				//Task[] tasks = lessons.Select(lesson => SetLessonVideoAsync(lesson)).ToArray();
 				//await Task.WhenAll(tasks);
+
+
+
+
+
+
+
+
+				//await SetLessonVideoAsync(lessons[0]);
+				//await SetLessonVideoAsync(lessons[1]);
+				//return default;
+
 				lessonTasks = lessons.Select(lesson => SetLessonVideoAsync(lesson));
 			}
 
@@ -703,23 +715,14 @@ namespace Downloader
 		}
 
 		[System.Diagnostics.CodeAnalysis.SuppressMessage("AsyncUsage", "AsyncFixer01:Unnecessary async/await usage", Justification = "<Ожидание>")]
-		private Task<HttpResponseMessage> PostAsJsonAsync(HttpClient httpClient, Uri requestUri, object content)
+		private async Task<HttpResponseMessage> PostAsJsonAsync(HttpClient httpClient, Uri requestUri, object content)
 		{
 			//string jsonContent = System.Text.Json.JsonSerializer.Serialize(content);
 			string jsonContent = JsonConvert.SerializeObject(content);
 			using HttpContent httpContent = new StringContent(jsonContent, Encoding.UTF8, "application/json");
 
-			return httpClient.PostAsync(requestUri, httpContent, _cancellationToken);
+			return await httpClient.PostAsync(requestUri, httpContent, _cancellationToken);
 		}
-		//[System.Diagnostics.CodeAnalysis.SuppressMessage("AsyncUsage", "AsyncFixer01:Unnecessary async/await usage", Justification = "<Ожидание>")]
-		//private async Task<HttpResponseMessage> PostAsJsonAsync(HttpClient httpClient, Uri requestUri, object content)
-		//{
-		//	//string jsonContent = System.Text.Json.JsonSerializer.Serialize(content);
-		//	string jsonContent = JsonConvert.SerializeObject(content);
-		//	using HttpContent httpContent = new StringContent(jsonContent, Encoding.UTF8, "application/json");
-
-		//	return await httpClient.PostAsync(requestUri, httpContent, _cancellationToken);
-		//}
 
 		//private /*async*/ Task/*<bool>*//*bool*/ DownloadFileAsync(Uri fileUri, string savePath, string fileName)
 		//{
