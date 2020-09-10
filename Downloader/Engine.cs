@@ -10,7 +10,6 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-using AngleSharp;
 using AngleSharp.Dom;
 using AngleSharp.Html.Dom;
 using AngleSharp.Html.Parser;
@@ -29,40 +28,53 @@ namespace Downloader
 {
 	public sealed class Engine
 	{
-		private /*readonly*/ Uri _courseUri;
-		private readonly CancellationToken _cancellationToken /*= new CancellationToken()*/;
-		//private readonly HttpClientRequester _httpClientRequester = new HttpClientRequester();
-		private CookieContainer _cookies = new CookieContainer();
+		private Uri _courseUri;
+		public string _email;
+		public string _password;
+		private readonly string _savePath;
+		private readonly CancellationToken _cancellationToken;
+		private readonly CookieContainer _cookies = new CookieContainer();
 		//private readonly TaskFactory _taskFactory;
-		//private readonly object lesson;
-		//private static readonly Uri baseUri = new Uri("https://itvdn.com");
 		private Uri _baseUri;
-
-		//private Uri videoFilesRequestUri;
-		//private Uri authorizeRequestUri;
-		//private readonly Uri videoFilesRequestUri = new Uri(baseUri, "Video/GetVideoFiles");
-		//private readonly Uri authorizeRequestUri = new Uri(baseUri, "ru/Account/Login");
 		private readonly char[] _invalidFileNameChars = Path.GetInvalidFileNameChars();
 
-
-		public string Email { get; set; }
-		public string Password { get; set; }
 		//public int MaxDownloadThread { get; set; } = 3;
 
-		public Engine(CancellationToken cancellationToken)
+		public Engine(
+			string email,
+			string password,
+			string savePath,
+			CancellationToken cancellationToken)
 		{
+			if (string.IsNullOrWhiteSpace(email))
+			{
+				throw new ArgumentException("Не указан адрес электронной почты для авторизации пользователя.", nameof(email));
+			}
+
+			if (string.IsNullOrWhiteSpace(password))
+			{
+				throw new ArgumentException("Не указан пароль для авторизации пользователя.", nameof(password));
+			}
+
+			if (string.IsNullOrWhiteSpace(savePath)
+				|| !Path.IsPathFullyQualified(savePath))
+			{
+				throw new ArgumentException("Не указан полный путь к папке загрузки файлов.", nameof(savePath));
+			}
+			else if (!Directory.Exists(savePath))
+			{
+				throw new ArgumentException($"Папка '{savePath}', указанная для загрузки файлов, не существует.", nameof(savePath));
+			}
+
+			_email = email;
+			_password = password;
+			_savePath = savePath;
 			_cancellationToken = cancellationToken;
-			//_taskFactory = new TaskFactory(cancellationToken, TaskCreationOptions.LongRunning, TaskContinuationOptions.None, new LimitedConcurrencyLevelTaskScheduler(2));
-			//_taskFactory = new TaskFactory(cancellationToken);
 		}
 
-		public async Task<Course> GetCourseAsync(string courseUrl)
+		public async Task<Course> GetCourseAsync(Uri courseUri)
 		{
-			if (string.IsNullOrWhiteSpace(courseUrl))
-			{
-				throw new ArgumentNullException(nameof(courseUrl));
-			}
-			_courseUri = new Url(courseUrl);
+			_courseUri = courseUri;
 			_baseUri = new Uri(_courseUri.GetComponents(UriComponents.SchemeAndServer, UriFormat.Unescaped));
 
 			if (_cookies.Count == 0
@@ -139,10 +151,10 @@ namespace Downloader
 			};
 		}
 
-		public async Task<bool> DownloadFilesAsync(Course course, string savePath)
+		public async Task<bool> DownloadFilesAsync(Course course)
 		{
 			string safeCourseTitle = GetSafeFileName(course?.Title);
-			string courseSavePath = Path.Combine(savePath, safeCourseTitle);
+			string courseSavePath = Path.Combine(_savePath, safeCourseTitle);
 			try
 			{
 				Directory.CreateDirectory(courseSavePath);
@@ -421,8 +433,8 @@ namespace Downloader
 		{
 			Dictionary<string, string> content = new Dictionary<string, string>
 			{
-				{ "Email", Email },
-				{ "Password", Password }
+				{ "Email", _email },
+				{ "Password", _password }
 			};
 
 			Uri requestUri = new Uri(_baseUri, "ru/Account/Login");
