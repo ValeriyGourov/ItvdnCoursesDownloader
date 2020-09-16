@@ -20,6 +20,7 @@ namespace ItvdnCoursesDownloaderConsole
 		private static async Task Main(string[] args)
 		{
 			IConfiguration configuration = new ConfigurationBuilder()
+				.AddJsonFile("appsettings.json", true, true)
 				.AddUserSecrets<Program>()
 				.AddCommandLine(args)
 				.Build();
@@ -40,27 +41,41 @@ namespace ItvdnCoursesDownloaderConsole
 				return;
 			}
 
+			string courseAddress = configuration["CourseAddress"];
 			do
 			{
-				Console.Clear();
-				Console.Write("Адрес курса: ");
-				string courseUri = Console.ReadLine();
-
-				Console.WriteLine("Загрузка информации о курсе...");
-
-				try
+				if (courseAddress is null)
 				{
-					bool result = await DownloadCourse(courseUri);
+					Console.Clear();
+					Console.Write("Адрес курса: ");
+					courseAddress = Console.ReadLine();
 				}
-				catch (Exception exception)
-				{
-					await ShowErrorMessage($"Ошибка: {GetErrorDescription(exception)}");
-					//Console.BackgroundColor = ConsoleColor.Black;
-					//Console.ForegroundColor = ConsoleColor.Red;
 
-					//Console.Error.WriteLine($"Ошибка: {GetErrorDescription(exception)}");
-					//Console.ResetColor();
+				if (Uri.TryCreate(courseAddress, UriKind.Absolute, out Uri courseUri))
+				{
+					Console.WriteLine("Загрузка информации о курсе...");
+
+					try
+					{
+						bool result = await DownloadCourse(courseUri);
+					}
+					catch (Exception exception)
+					{
+						await ShowErrorMessage($"Ошибка: {GetErrorDescription(exception)}");
+						//Console.BackgroundColor = ConsoleColor.Black;
+						//Console.ForegroundColor = ConsoleColor.Red;
+
+						//Console.Error.WriteLine($"Ошибка: {GetErrorDescription(exception)}");
+						//Console.ResetColor();
+					}
+
 				}
+				else
+				{
+					await ShowErrorMessage($"Некорректный адрес курса: {courseAddress}");
+				}
+
+				courseAddress = null;
 			} while (OneMoreCourseRequest());
 		}
 
@@ -95,9 +110,9 @@ namespace ItvdnCoursesDownloaderConsole
 			}
 		}
 
-		private static async Task<bool> DownloadCourse(string uri)
+		private static async Task<bool> DownloadCourse(Uri uri)
 		{
-			_course = await _engine.GetCourseAsync(new Uri(uri));
+			_course = await _engine.GetCourseAsync(uri);
 
 			if (_course == null)
 			{
