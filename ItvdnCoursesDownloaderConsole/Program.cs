@@ -97,7 +97,7 @@ namespace ItvdnCoursesDownloaderConsole
 
 			while (true)
 			{
-				switch (Console.ReadKey().KeyChar)
+				switch (Console.ReadKey(true).KeyChar)
 				{
 					case '1':
 						return true;
