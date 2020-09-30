@@ -1,74 +1,80 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Runtime.Serialization;
+using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Web;
 
 using AngleSharp.Dom;
 using AngleSharp.Html.Dom;
 using AngleSharp.Html.Parser;
+using AngleSharp.Text;
 
 using Downloader.Infrastructure;
 using Downloader.Models;
 using Downloader.Models.Responses;
+using Downloader.Pages;
 
 using Jint.Native;
 using Jint.Parser;
 using Jint.Parser.Ast;
 
+using Microsoft.Edge.SeleniumTools;
+
 using Newtonsoft.Json;
+
+using OpenQA.Selenium;
 
 namespace Downloader
 {
 	public sealed class Engine
 	{
 		private Uri _courseUri;
-		public string _email;
-		public string _password;
-		private readonly string _savePath;
+
+		private readonly EngineSettings _settings;
 		private readonly CancellationToken _cancellationToken;
-		private readonly CookieContainer _cookies = new CookieContainer();
+		private CookieContainer _cookies = new CookieContainer();
 		//private readonly TaskFactory _taskFactory;
 		private Uri _baseUri;
 		private readonly char[] _invalidFileNameChars = Path.GetInvalidFileNameChars();
+		private const string _applicationDataFolderName = "ITVDN Courses Downloader";
+		private const string _cookiesFileName = "Cookies";
+		private static readonly string _cookiesfileFullName = Path.Combine(
+			Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+			_applicationDataFolderName,
+			_cookiesFileName);
 
 		//public int MaxDownloadThread { get; set; } = 3;
 
-		public Engine(
-			string email,
-			string password,
-			string savePath,
-			CancellationToken cancellationToken)
+		/// <summary>
+		/// Основной конструктор.
+		/// </summary>
+		/// <param name="engineSettings">Настройки движка загрузки.</param>
+		/// <param name="cancellationToken">Объект уведомления об отмене операции.</param>
+		/// <exception cref="EngineSettingsValidationException">Некорректные настройки движка.</exception>
+		public Engine(EngineSettings engineSettings, CancellationToken cancellationToken)
 		{
-			if (string.IsNullOrWhiteSpace(email))
+			List<ValidationResult> validationResults = new List<ValidationResult>();
+
+			if (!Validator.TryValidateObject(
+				engineSettings,
+				new ValidationContext(engineSettings),
+				validationResults,
+				true))
 			{
-				throw new ArgumentException("Не указан адрес электронной почты для авторизации пользователя.", nameof(email));
+				throw new EngineSettingsValidationException("Ошибки в настройках.", validationResults);
 			}
 
-			if (string.IsNullOrWhiteSpace(password))
-			{
-				throw new ArgumentException("Не указан пароль для авторизации пользователя.", nameof(password));
-			}
-
-			if (string.IsNullOrWhiteSpace(savePath)
-				|| !Path.IsPathFullyQualified(savePath))
-			{
-				throw new ArgumentException("Не указан полный путь к папке загрузки файлов.", nameof(savePath));
-			}
-			else if (!Directory.Exists(savePath))
-			{
-				throw new ArgumentException($"Папка '{savePath}', указанная для загрузки файлов, не существует.", nameof(savePath));
-			}
-
-			_email = email;
-			_password = password;
-			_savePath = savePath;
+			_settings = engineSettings;
 			_cancellationToken = cancellationToken;
 		}
 
@@ -77,10 +83,8 @@ namespace Downloader
 			_courseUri = courseUri;
 			_baseUri = new Uri(_courseUri.GetComponents(UriComponents.SchemeAndServer, UriFormat.Unescaped));
 
-			if (_cookies.Count == 0
-				&& !await AuthorizeAsync())
+			if (!SetCookies())
 			{
-				// TODO: Зафиксировать ошибку.
 				return null;
 			}
 
@@ -154,7 +158,7 @@ namespace Downloader
 		public async Task<bool> DownloadFilesAsync(Course course)
 		{
 			string safeCourseTitle = GetSafeFileName(course?.Title);
-			string courseSavePath = Path.Combine(_savePath, safeCourseTitle);
+			string courseSavePath = Path.Combine(_settings.SavePath, safeCourseTitle);
 			try
 			{
 				Directory.CreateDirectory(courseSavePath);
@@ -429,30 +433,27 @@ namespace Downloader
 			.FirstOrDefault()?
 			.TextContent;
 
-		private async Task<bool> AuthorizeAsync()
+		/// <summary>
+		/// Выполняет авторизацию пользователя на сайте. Авторизация выполняется через Selenium WebDriver с открытием страницы авторизации в браузере.
+		/// </summary>
+		/// <param name="webDriver">Экземпляр Selenium WebDriver.</param>
+		/// <returns></returns>
+		private bool Authorize(IWebDriver webDriver)
 		{
-			Dictionary<string, string> content = new Dictionary<string, string>
-			{
-				{ "Email", _email },
-				{ "Password", _password }
-			};
+			bool authorized = true;
 
-			Uri requestUri = new Uri(_baseUri, "ru/Account/Login");
-
-			using (HttpClientHandler httpClientHandler = CreateHttpClientHandler())
-			using (HttpClient httpClient = CreateHttpClient(httpClientHandler))
-			using (FormUrlEncodedContent httpContent = new FormUrlEncodedContent(content))
-			using (HttpResponseMessage response = await httpClient.PostAsync(requestUri, httpContent, _cancellationToken))
+			LoginPage loginPage = new LoginPage(webDriver, _baseUri);
+			try
 			{
-				//response.EnsureSuccessStatusCode();
-				if (!response.IsSuccessStatusCode)
-				{
-					// TODO: Зафиксировать ошибку.
-					return false;
-				}
+				loginPage.Authorize(_settings.Email, _settings.Password);
+			}
+			catch (Exception)
+			{
+				authorized = false;
+				// TODO: Зафиксировать ошибку.
 			}
 
-			return true;
+			return authorized;
 		}
 
 		private Task DownloadFileAsync(DownloadFile downloadFile)
@@ -498,5 +499,143 @@ namespace Downloader
 		private HttpClientHandler CreateHttpClientHandler() => new HttpClientHandler { CookieContainer = _cookies };
 
 		private HttpClient CreateHttpClient(HttpClientHandler httpClientHandler) => new HttpClient(httpClientHandler) { BaseAddress = _baseUri };
+
+		/// <summary>
+		/// Устанавливает куки для последующих HTTP-запросов.
+		/// </summary>
+		/// <returns><see langword="true"/> - куки установлены успешно; <see langword="false"/> - в противном случае.</returns>
+		private bool SetCookies()
+		{
+			if (_cookies.Count != 0)
+			{
+				return true;
+			}
+			else
+			{
+				CookieContainer cookiesFromDisk = ReadCookiesFromDisk();
+				if (cookiesFromDisk?.Count > 0)
+				{
+					_cookies = cookiesFromDisk;
+					return true;
+				}
+
+				using IWebDriver webDriver = CreateWebDriver();
+
+				bool authorized = Authorize(webDriver);
+
+				if (authorized)
+				{
+					webDriver.Manage().Window.Minimize();
+
+					webDriver.Manage().Cookies.AllCookies
+						.ToList()
+						.ForEach(cookie => _cookies.Add(new System.Net.Cookie(
+							cookie.Name,
+							HttpUtility.UrlEncode(cookie.Value),
+							cookie.Path,
+							cookie.Domain)));
+
+					WriteCookiesToDisk(_cookies);
+				}
+
+				webDriver.Quit();
+
+				if (authorized)
+				{
+					return true;
+				}
+				else
+				{
+					// TODO: Зафиксировать ошибку.
+					return false;
+				}
+			}
+		}
+
+		/// <summary>
+		/// Создаёт новый экземпляр Selenium WebDriver с требуемыми настройками.
+		/// </summary>
+		/// <returns>Новый экземпляр Selenium WebDriver.</returns>
+		private IWebDriver CreateWebDriver()
+		{
+			EdgeOptions options = new EdgeOptions
+			{
+				UseChromium = true
+			};
+
+			try
+			{
+				return new EdgeDriver(_settings.WebDriversPath, options);
+			}
+			catch
+			//catch (DriverServiceNotFoundException exception)
+			{
+				// TODO: Зафиксировать ошибку.
+				throw;
+			}
+		}
+
+		/// <summary>
+		/// Сохраняет куки на диск для использования в будущих запусках приложения.
+		/// </summary>
+		/// <param name="cookies">Контейнер с куки.</param>
+		/// <exception cref="SerializationException">Ошибка сериализации куки.</exception>
+		private static void WriteCookiesToDisk(CookieContainer cookies)
+		{
+			FileInfo cookiesFileInfo = new FileInfo(_cookiesfileFullName);
+			if (!Directory.Exists(cookiesFileInfo.DirectoryName))
+			{
+				Directory.CreateDirectory(cookiesFileInfo.DirectoryName);
+			}
+
+			using FileStream fileStream = new FileStream(_cookiesfileFullName, FileMode.Create);
+			BinaryFormatter formatter = new BinaryFormatter();
+
+			try
+			{
+				formatter.Serialize(fileStream, cookies);
+			}
+			catch (SerializationException)
+			{
+				// TODO: Зафиксировать ошибку.
+				//Console.WriteLine("Failed to serialize. Reason: " + exception.Message);
+			}
+			finally
+			{
+				fileStream.Close();
+			}
+		}
+
+		/// <summary>
+		/// Считывает с диска ранее сохранённые куки.
+		/// </summary>
+		/// <returns>Контейнер с куки.</returns>
+		/// <exception cref="SerializationException">Ошибка десериализации куки.</exception>
+		private static CookieContainer ReadCookiesFromDisk()
+		{
+			CookieContainer cookies = null;
+
+			if (File.Exists(_cookiesfileFullName))
+			{
+				using FileStream fileStream = new FileStream(_cookiesfileFullName, FileMode.Open);
+				BinaryFormatter formatter = new BinaryFormatter();
+
+				try
+				{
+					cookies = formatter.Deserialize(fileStream) as CookieContainer;
+				}
+				catch (SerializationException)
+				{
+					// TODO: Зафиксировать ошибку.
+					//Console.WriteLine("Failed to deserialize. Reason: " + exception.Message);
+				}
+				finally
+				{
+					fileStream.Close();
+				}
+			}
+
+			return cookies;
+		}
 	}
 }
