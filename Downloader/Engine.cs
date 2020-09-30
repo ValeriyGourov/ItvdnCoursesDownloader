@@ -1,73 +1,90 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Runtime.Serialization;
+using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Web;
 
-using AngleSharp;
+using AngleSharp.Dom;
 using AngleSharp.Html.Dom;
 using AngleSharp.Html.Parser;
-using AngleSharp.Io.Network;
+using AngleSharp.Text;
 
 using Downloader.Infrastructure;
 using Downloader.Models;
 using Downloader.Models.Responses;
+using Downloader.Pages;
 
 using Jint.Native;
 using Jint.Parser;
 using Jint.Parser.Ast;
 
+using Microsoft.Edge.SeleniumTools;
+
 using Newtonsoft.Json;
+
+using OpenQA.Selenium;
 
 namespace Downloader
 {
 	public sealed class Engine
 	{
-		private /*readonly*/ Uri _courseUri;
-		private readonly CancellationToken _cancellationToken /*= new CancellationToken()*/;
-		private readonly HttpClientRequester _httpClientRequester = new HttpClientRequester();
+		private Uri _courseUri;
+
+		private readonly EngineSettings _settings;
+		private readonly CancellationToken _cancellationToken;
 		private CookieContainer _cookies = new CookieContainer();
 		//private readonly TaskFactory _taskFactory;
-		//private readonly object lesson;
-		//private static readonly Uri baseUri = new Uri("https://itvdn.com");
 		private Uri _baseUri;
-
-		//private Uri videoFilesRequestUri;
-		//private Uri authorizeRequestUri;
-		//private readonly Uri videoFilesRequestUri = new Uri(baseUri, "Video/GetVideoFiles");
-		//private readonly Uri authorizeRequestUri = new Uri(baseUri, "ru/Account/Login");
 		private readonly char[] _invalidFileNameChars = Path.GetInvalidFileNameChars();
+		private const string _applicationDataFolderName = "ITVDN Courses Downloader";
+		private const string _cookiesFileName = "Cookies";
+		private static readonly string _cookiesfileFullName = Path.Combine(
+			Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+			_applicationDataFolderName,
+			_cookiesFileName);
 
-
-		public string Email { get; set; }
-		public string Password { get; set; }
 		//public int MaxDownloadThread { get; set; } = 3;
 
-		public Engine(CancellationToken cancellationToken)
+		/// <summary>
+		/// Основной конструктор.
+		/// </summary>
+		/// <param name="engineSettings">Настройки движка загрузки.</param>
+		/// <param name="cancellationToken">Объект уведомления об отмене операции.</param>
+		/// <exception cref="EngineSettingsValidationException">Некорректные настройки движка.</exception>
+		public Engine(EngineSettings engineSettings, CancellationToken cancellationToken)
 		{
+			List<ValidationResult> validationResults = new List<ValidationResult>();
+
+			if (!Validator.TryValidateObject(
+				engineSettings,
+				new ValidationContext(engineSettings),
+				validationResults,
+				true))
+			{
+				throw new EngineSettingsValidationException("Ошибки в настройках.", validationResults);
+			}
+
+			_settings = engineSettings;
 			_cancellationToken = cancellationToken;
-			//_taskFactory = new TaskFactory(cancellationToken, TaskCreationOptions.LongRunning, TaskContinuationOptions.None, new LimitedConcurrencyLevelTaskScheduler(2));
-			//_taskFactory = new TaskFactory(cancellationToken);
 		}
 
-		public async Task<Course> GetCourseAsync(string courseUrl)
+		public async Task<Course> GetCourseAsync(Uri courseUri)
 		{
-			if (string.IsNullOrWhiteSpace(courseUrl))
-			{
-				throw new ArgumentNullException(nameof(courseUrl));
-			}
-			_courseUri = new Url(courseUrl);
+			_courseUri = courseUri;
 			_baseUri = new Uri(_courseUri.GetComponents(UriComponents.SchemeAndServer, UriFormat.Unescaped));
 
-			if (_cookies.Count == 0
-				&& !await AuthorizeAsync())
+			if (!SetCookies())
 			{
-				// TODO: Зафиксировать ошибку.
 				return null;
 			}
 
@@ -80,7 +97,7 @@ namespace Downloader
 			Task<Uri> materialsUriTask = GetMaterialsUri(document);
 
 			string title = GetCourseTitle(document);
-			var lessons = GetLessons(document);
+			List<Lesson> lessons = GetLessons(document);
 
 			IEnumerable<Task> lessonTasks = null;
 			if (lessons?.Count > 0)
@@ -119,6 +136,8 @@ namespace Downloader
 
 				//Task[] tasks = lessons.Select(lesson => SetLessonVideoAsync(lesson)).ToArray();
 				//await Task.WhenAll(tasks);
+
+
 				lessonTasks = lessons.Select(lesson => SetLessonVideoAsync(lesson));
 			}
 
@@ -136,19 +155,10 @@ namespace Downloader
 			};
 		}
 
-		public async Task<bool> DownloadFilesAsync(Course course, string savePath)
+		public async Task<bool> DownloadFilesAsync(Course course)
 		{
-			//char replaceChar = '_';
-			//string safeCourseTitle = course.Title;
-			//foreach (char invalidChar in Path.GetInvalidFileNameChars())
-			//{
-			//    safeCourseTitle = safeCourseTitle.Replace(invalidChar, replaceChar);
-			//}
-
-			string safeCourseTitle = GetSafeFileName(course.Title);
-			string courseSavePath = Path.Combine(savePath, safeCourseTitle);
-			//DirectoryInfo directoryInfo = new DirectoryInfo(courseSavePath);
-			//directoryInfo.Create
+			string safeCourseTitle = GetSafeFileName(course?.Title);
+			string courseSavePath = Path.Combine(_settings.SavePath, safeCourseTitle);
 			try
 			{
 				Directory.CreateDirectory(courseSavePath);
@@ -161,49 +171,6 @@ namespace Downloader
 
 			course.ChangeSavePath(courseSavePath);
 
-
-
-
-			//int lessonsCount = course.Lessons.Count;
-			//Action[] actions = new Action[lessonsCount];
-			//for (int i = 0; i < lessonsCount; i++)
-			//{
-			//    // Note that we create the Action here, but do not start it.
-			//    Lesson lesson = course.Lessons[i];
-			//    string safeLessonTitle = GetSafeFileName(lesson.Title, invalidFileNameChars);
-			//    string lessonFileName = $"{lesson.Number}. {safeLessonTitle}";
-			//    actions[i] = () => DownloadFileAsync(lesson.VideoUri, courseSavePath, lessonFileName);
-			//}
-			//ParallelOptions parallelOptions = new ParallelOptions { MaxDegreeOfParallelism = 2 };
-			//Parallel.Invoke(parallelOptions, actions);
-
-
-
-
-
-			//await DownloadFile(course.MaterialsUri, courseSavePath);
-			//foreach (Lesson lesson in course.Lessons)
-			//{
-			//    string safeLessonTitle = GetSafeFileName(lesson.Title, invalidFileNameChars);
-			//    string lessonFileName = $"{lesson.Number}. {safeLessonTitle}";
-			//    DownloadFile(lesson.VideoUri, courseSavePath, lessonFileName);
-			//}
-
-
-
-
-
-			//var files = course.GetDownloadFiles().CorrectFiles;
-			//ParallelLoopResult parallelLoopResult;
-			//await Task.Run(() =>
-			//{
-			//    parallelLoopResult = Parallel.ForEach(files, file => DownloadFile(file));
-			//});
-			//int failures = files.Count(file => file.Status != DownloadFileStatus.Completed);
-			//return failures == 0;
-
-
-
 			Task[] tasks = course.CorrectFiles
 				 .Select(file => DownloadFileAsync(file))
 				 .ToArray();
@@ -213,58 +180,6 @@ namespace Downloader
 			await waitTask.ContinueWith(task => succsess = !task.IsFaulted);
 
 			return succsess;
-
-
-
-
-
-			//var (correctFiles, incorrectFiles) = course.GetDownloadFiles();
-			//int filesCount = correctFiles.Count;
-			//Task[] tasks = new Task[filesCount];
-			//for (int i = 0; i < filesCount; i++)
-			//{
-			//    tasks[i] = await _taskFactory.StartNew(() => DownloadFileAsync(correctFiles[i]),
-			//        _cancellationToken,
-			//        TaskCreationOptions.LongRunning,
-			//        TaskScheduler.Default);
-			//}
-			////await Task.WhenAll(tasks);
-
-			//int failures = 0;
-			////failures = tasks.Count(task => task.Exception != null);
-			//_taskFactory.ContinueWhenAll(tasks,
-			//    completedTasks =>
-			//    {
-			//        //failures = completedTasks.Where(task => !task.Result).Count();
-			//        failures = completedTasks.Count(task => task.Exception != null);
-			//        //failures = completedTasks.Where(task => task.Exception != null).Count();
-			//    })
-			//    .Wait();
-
-			//if (failures > 0)
-			//{
-			//    return false;
-			//}
-
-
-
-
-
-
-			//Parallel.ForEach(course.Lessons,
-			//    new ParallelOptions()
-			//    {
-			//        CancellationToken = cancellationToken,
-			//        MaxDegreeOfParallelism = MaxDownloadThread
-			//    },
-			//    lesson =>
-			//    {
-			//        string safeLessonTitle = GetSafeFileName(lesson.Title, invalidFileNameChars);
-			//        string lessonFileName = $"{lesson.Number}. {safeLessonTitle}";
-			//        DownloadFile(lesson.VideoUri, courseSavePath, lessonFileName);
-			//    });
-
-			//return true;
 		}
 
 		private string GetSafeFileName(string fileName)
@@ -274,53 +189,29 @@ namespace Downloader
 				.Trim()
 				.Select(@char => _invalidFileNameChars.Contains(@char) ? replaceChar : @char)
 				.ToArray());
-
-
-			//const char replaceChar = '_';
-
-			//string safeFileName = fileName.Trim();
-			//foreach (char invalidChar in _invalidFileNameChars)
-			//{
-			//    safeFileName = safeFileName.Replace(invalidChar, replaceChar);
-			//}
-
-			//return safeFileName;
 		}
 
 		private async Task<IHtmlDocument> GetDocumentAsync(Uri uri, Uri referrer = null)
 		{
 			string html = null;
 
-			using (HttpClientHandler httpClientHandler = new HttpClientHandler()
+			using (HttpClientHandler httpClientHandler = CreateHttpClientHandler())
 			{
-				CookieContainer = _cookies,
-				AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
-			})
-			using (HttpClient httpClient = new HttpClient(httpClientHandler) { BaseAddress = _baseUri })
-			using (HttpRequestMessage httpRequest = new HttpRequestMessage()
-			{
-				RequestUri = uri,
-				Method = HttpMethod.Get,
-			})
-			{
+				httpClientHandler.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
+
+				using HttpClient httpClient = CreateHttpClient(httpClientHandler);
+				using HttpRequestMessage httpRequest = new HttpRequestMessage()
+				{
+					RequestUri = uri,
+					Method = HttpMethod.Get,
+				};
 				if (referrer != null)
 				{
 					httpRequest.Headers.Referrer = referrer;
-					//httpClient.DefaultRequestHeaders.Referrer = referrer;
-					//httpClient.DefaultRequestHeaders.Add("Referer", "https://itvdn.com/ru/video/csharp-for-professional-renewed");
 				}
 				httpRequest.Headers.UserAgent.Add(new ProductInfoHeaderValue("Client", "1"));
-				//httpRequest.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/html"));
-				//httpRequest.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/xhtml+xml"));
-				//httpRequest.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/xml"));
-				//httpRequest.Headers.AcceptCharset.Add(new StringWithQualityHeaderValue("utf-8"));
 				httpRequest.Headers.AcceptEncoding.Add(new StringWithQualityHeaderValue("gzip"));
 				httpRequest.Headers.AcceptEncoding.Add(new StringWithQualityHeaderValue("deflate"));
-				//httpRequest.Headers.CacheControl = new CacheControlHeaderValue() { NoCache = true };
-				//httpRequest.Headers.UserAgent.Add(new ProductInfoHeaderValue("RestSharp", "106.5.4.0"));
-				//httpRequest.Headers.AcceptEncoding.Add(new StringWithQualityHeaderValue("gzip, deflate"));
-				//httpClient.DefaultRequestHeaders.CacheControl = new CacheControlHeaderValue() { NoCache = true };
-				//httpClient.DefaultRequestHeaders.Add("cache-control", "no-cache");
 
 				using (HttpResponseMessage response = await httpClient.SendAsync(httpRequest, _cancellationToken))
 				{
@@ -328,19 +219,6 @@ namespace Downloader
 					if (response.IsSuccessStatusCode)
 					{
 						html = await response.Content.ReadAsStringAsync();
-
-						//var IsFormData = response.Content.IsFormData();
-						//var IsHttpRequestMessageContent = response.Content.IsHttpRequestMessageContent();
-						//var IsHttpResponseMessageContent = response.Content.IsHttpResponseMessageContent();
-						//var IsMimeMultipartContent = response.Content.IsMimeMultipartContent();
-						////void LoadIntoBufferAsync = await response.Content.LoadIntoBufferAsync();
-						////var ReadAsAsync = await response.Content.ReadAsAsync<string>();
-						//var ReadAsByteArrayAsync = await response.Content.ReadAsByteArrayAsync();
-						////var ReadAsFormDataAsync = await response.Content.ReadAsFormDataAsync();
-						//var ReadAsHttpRequestMessageAsync = await response.Content.ReadAsHttpRequestMessageAsync();
-						//var ReadAsHttpResponseMessageAsync = await response.Content.ReadAsHttpResponseMessageAsync();
-						//var ReadAsMultipartAsync = await response.Content.ReadAsMultipartAsync();
-						//var ReadAsStreamAsync = await response.Content.ReadAsStreamAsync();
 					}
 					else
 					{
@@ -350,38 +228,11 @@ namespace Downloader
 			}
 
 			return html == null ? null : await new HtmlParser().ParseDocumentAsync(html, _cancellationToken);
-
-			//string html = null;
-
-			//using (HttpClientHandler httpClientHandler = new HttpClientHandler() { CookieContainer = cookies })
-			//using (HttpClient httpClient = new HttpClient(httpClientHandler) { BaseAddress = baseUri })
-			//{
-			//    if (referrer != null)
-			//    {
-			//        //httpClient.DefaultRequestHeaders.Referrer = referrer;
-			//        httpClient.DefaultRequestHeaders.Add("Referer", "https://itvdn.com/ru/video/csharp-for-professional-renewed");
-			//    }
-			//    //httpClient.DefaultRequestHeaders.CacheControl = new CacheControlHeaderValue() { NoCache = true };
-			//    //httpClient.DefaultRequestHeaders.Add("cache-control", "no-cache");
-			//    HttpResponseMessage response = await httpClient.GetAsync(uri, cancellationToken);
-
-			//    //response.EnsureSuccessStatusCode();
-			//    if (response.IsSuccessStatusCode)
-			//    {
-			//        html = await response.Content.ReadAsStringAsync();
-			//    }
-			//    else
-			//    {
-			//        // TODO: Зафиксировать ошибку.
-			//    }
-			//}
-
-			//return html == null ? null : await new HtmlParser().ParseAsync(html, cancellationToken);
 		}
 
 		private List<Lesson> GetLessons(IHtmlDocument document)
 		{
-			var query =
+			IEnumerable<Lesson> query =
 				from videoLessonItem in document.GetElementsByClassName("video-lesson-item")
 				let childrenTags = videoLessonItem.Children
 				let linkTag = childrenTags
@@ -396,7 +247,7 @@ namespace Downloader
 					Number = Convert.ToInt32(linkTag?
 						.GetElementsByClassName("lesson-number")
 						.FirstOrDefault()?
-						.TextContent),
+						.TextContent, CultureInfo.InvariantCulture),
 					Title = linkTag?
 						.GetElementsByClassName("lsn-name-wrapper")
 						.FirstOrDefault()?
@@ -404,31 +255,7 @@ namespace Downloader
 					Id = idTag?.GetAttribute("data-lesson-id")
 				};
 			return query.ToList();
-
-			//return document
-			//    .GetElementsByClassName("video-lesson-item")
-			//    .SelectMany(videoLessonItem => videoLessonItem.Children)
-			//    .Where(lesson => lesson.TagName.Equals("a", StringComparison.OrdinalIgnoreCase))
-			//    .Select(link => new Lesson
-			//    {
-			//        Uri = new Uri(courseUri, link.GetAttribute("href")),
-			//        Number = Convert.ToInt32(link.GetElementsByClassName("lesson-number").FirstOrDefault()?.TextContent),
-			//        Title = link.GetElementsByClassName("lsn-name-wrapper").FirstOrDefault()?.TextContent
-			//    })
-			//    .ToList();
 		}
-
-		//private List<Lesson> GetLessons(IHtmlDocument document) => document
-		//    .GetElementsByClassName("video-lesson-item")
-		//    .SelectMany(videoLessonItem => videoLessonItem.Children)
-		//    .Where(lesson => lesson.TagName.Equals("a", StringComparison.OrdinalIgnoreCase))
-		//    .Select(link => new Lesson
-		//    {
-		//        Uri = new Uri(courseUri, link.GetAttribute("href")),
-		//        Number = Convert.ToInt32(link.GetElementsByClassName("lesson-number").FirstOrDefault()?.TextContent),
-		//        Title = link.GetElementsByClassName("lsn-name-wrapper").FirstOrDefault()?.TextContent
-		//    })
-		//    .ToList();
 
 		private string GetCourseTitle(IHtmlDocument document) => document
 			.GetElementsByTagName("h1")
@@ -439,7 +266,7 @@ namespace Downloader
 		private async Task<Uri> GetMaterialsUri(IHtmlDocument document)
 		{
 			const string className = "materials-buttons-wrapper";
-			var materialsButtonsWrapperTag = document
+			IElement materialsButtonsWrapperTag = document
 				.GetElementsByClassName(className)
 				.FirstOrDefault();
 			if (materialsButtonsWrapperTag == null)
@@ -448,39 +275,33 @@ namespace Downloader
 			}
 
 			string linkToMaterials = materialsButtonsWrapperTag
-				.GetElementsByClassName("btn-filled-orange btn-get-materials get-materials")
+				.GetElementsByClassName("btn-filled-green btn-get-sertificate get-materials")
 				.FirstOrDefault()?
 				.GetAttribute("data-link");
-			//string linkToMaterials = document
-			//    .GetElementsByClassName("btn-filled-orange btn-get-materials get-materials")
-			//    .FirstOrDefault()?
-			//    .GetAttribute("data-link");
 
 			string materialsUrl = null;
 			if (Uri.IsWellFormedUriString(linkToMaterials, UriKind.Absolute))
 			{
 				Uri requestUri = new Uri(_baseUri, "Video/GetLinkToMaterials");
 
-				using (HttpClientHandler httpClientHandler = new HttpClientHandler() { CookieContainer = _cookies })
-				using (HttpClient httpClient = new HttpClient(httpClientHandler) { BaseAddress = _baseUri })
+				using HttpClientHandler httpClientHandler = CreateHttpClientHandler();
+				using HttpClient httpClient = CreateHttpClient(httpClientHandler);
+
+				var content = new
 				{
-					var content = new
-					{
-						linkToMaterials
-					};
-					using (HttpResponseMessage response = await PostAsJsonAsync(httpClient, requestUri, content))
-					{
-						//response.EnsureSuccessStatusCode();
-						if (response.IsSuccessStatusCode)
-						{
-							string jsonString = await response.Content.ReadAsStringAsync();
-							materialsUrl = JsonConvert.DeserializeObject<string>(jsonString);
-						}
-						else
-						{
-							// TODO: Зафиксировать ошибку.
-						}
-					}
+					linkToMaterials
+				};
+
+				using HttpResponseMessage response = await PostAsJsonAsync(httpClient, requestUri, content);
+				//response.EnsureSuccessStatusCode();
+				if (response.IsSuccessStatusCode)
+				{
+					string jsonString = await response.Content.ReadAsStringAsync();
+					materialsUrl = JsonConvert.DeserializeObject<string>(jsonString);
+				}
+				else
+				{
+					// TODO: Зафиксировать ошибку.
 				}
 			}
 
@@ -489,8 +310,6 @@ namespace Downloader
 
 		private async Task SetLessonVideoAsync(Lesson lesson)
 		{
-			//Console.WriteLine($"SetLessonVideoUriAsync: {lesson.Title}");
-
 			IHtmlDocument lessonDocument = await GetDocumentAsync(lesson.Uri, lesson.Uri);
 			if (lessonDocument == null)
 			{
@@ -500,27 +319,25 @@ namespace Downloader
 			VideoIdResponse videoIdResponse = null;
 			Uri requestUri = new Uri(_baseUri, "Video/GetVideoId");
 
-			using (HttpClientHandler httpClientHandler = new HttpClientHandler() { CookieContainer = _cookies })
-			using (HttpClient httpClient = new HttpClient(httpClientHandler) { BaseAddress = _baseUri })
+			using (HttpClientHandler httpClientHandler = CreateHttpClientHandler())
+			using (HttpClient httpClient = CreateHttpClient(httpClientHandler))
 			{
-				//httpContent.Headers.ContentType = new MediaTypeHeaderValue("application/json");
 				var content = new
 				{
 					lessonId = lesson.Id
 				};
-				using (HttpResponseMessage response = await PostAsJsonAsync(httpClient, requestUri, content))
+
+				using HttpResponseMessage response = await PostAsJsonAsync(httpClient, requestUri, content);
+				//response.EnsureSuccessStatusCode();
+				if (response.IsSuccessStatusCode)
 				{
-					//response.EnsureSuccessStatusCode();
-					if (response.IsSuccessStatusCode)
-					{
-						string responseContent = await response.Content.ReadAsStringAsync();
-						videoIdResponse = JsonConvert.DeserializeObject<VideoIdResponse>(responseContent);
-					}
-					else
-					{
-						// TODO: Зафиксировать ошибку.
-						return;
-					}
+					string responseContent = await response.Content.ReadAsStringAsync();
+					videoIdResponse = JsonConvert.DeserializeObject<VideoIdResponse>(responseContent);
+				}
+				else
+				{
+					// TODO: Зафиксировать ошибку.
+					return;
 				}
 			}
 
@@ -616,94 +433,57 @@ namespace Downloader
 			.FirstOrDefault()?
 			.TextContent;
 
-		private async Task<bool> AuthorizeAsync()
+		/// <summary>
+		/// Выполняет авторизацию пользователя на сайте. Авторизация выполняется через Selenium WebDriver с открытием страницы авторизации в браузере.
+		/// </summary>
+		/// <param name="webDriver">Экземпляр Selenium WebDriver.</param>
+		/// <returns></returns>
+		private bool Authorize(IWebDriver webDriver)
 		{
-			var content = new Dictionary<string, string>
-			{
-				{ "Email", Email },
-				{ "Password", Password }
-			};
+			bool authorized = true;
 
-			Uri requestUri = new Uri(_baseUri, "ru/Account/Login");
-
-			using (HttpClientHandler httpClientHandler = new HttpClientHandler { CookieContainer = _cookies })
-			using (HttpClient httpClient = new HttpClient(httpClientHandler) { BaseAddress = _baseUri })
-			using (FormUrlEncodedContent httpContent = new FormUrlEncodedContent(content))
-			using (HttpResponseMessage response = await httpClient.PostAsync(requestUri, httpContent, _cancellationToken))
+			LoginPage loginPage = new LoginPage(webDriver, _baseUri);
+			try
 			{
-				//response.EnsureSuccessStatusCode();
-				if (!response.IsSuccessStatusCode)
-				{
-					// TODO: Зафиксировать ошибку.
-					return false;
-				}
+				loginPage.Authorize(_settings.Email, _settings.Password);
+			}
+			catch (Exception)
+			{
+				authorized = false;
+				// TODO: Зафиксировать ошибку.
 			}
 
-			return true;
+			return authorized;
 		}
 
 		private Task DownloadFileAsync(DownloadFile downloadFile)
 		{
-			//Console.WriteLine($"DownloadFile: {downloadFile.Uri}");
+			using WebClient webClient = new WebClient();
 
-			//if (string.IsNullOrWhiteSpace(savePath))
-			//{
-			//    // TODO: Зафиксировать ошибку.
-			//    return false;
-			//}
+			_cancellationToken.Register(webClient.CancelAsync);
+			webClient.Headers.Add(HttpRequestHeader.Cookie, _cookies.GetCookieHeader(_baseUri));
 
-			//DirectoryInfo directoryInfo = new DirectoryInfo(savePath);
-			//if (!directoryInfo.Exists)
-			//{
-			//    // TODO: Зафиксировать ошибку.
-			//    return false;
-			//}
-
-
-
-			using (WebClient webClient = new WebClient())
+			webClient.DownloadFileCompleted += (sender, args) =>
 			{
-				_cancellationToken.Register(webClient.CancelAsync);
-				webClient.Headers.Add(HttpRequestHeader.Cookie, _cookies.GetCookieHeader(_baseUri));
-
-				webClient.DownloadFileCompleted += (sender, args) =>
+				downloadFile.Error = args.Error;
+			};
+			webClient.DownloadProgressChanged += (sender, args) =>
+			{
+				if (downloadFile.Size == 0)
 				{
-					downloadFile.Error = args.Error;
-					//if (downloadFile.Error == null)
-					//{
-					//    downloadFile.Status = DownloadFileStatus.Completed;
-					//}
-				};
-				webClient.DownloadProgressChanged += (sender, args) =>
-				{
-					if (downloadFile.Size == 0)
-					{
-						downloadFile.Size = args.TotalBytesToReceive;
-					}
-					//downloadFile.Status = DownloadFileStatus.InProgress;
-					downloadFile.ProgressPercentage = args.ProgressPercentage;
-				};
-				try
-				{
-					//webClient.DownloadFileAsync(downloadFile.Uri, downloadFile.TargetFileFullName);
-					return webClient.DownloadFileTaskAsync(downloadFile.Uri, downloadFile.TargetFileFullName);
+					downloadFile.Size = args.TotalBytesToReceive;
 				}
-				catch (Exception exception)
-				{
-					downloadFile.Error = exception;
-					//downloadFile.Status = DownloadFileStatus.Error;
-					//return false;
-					return Task.FromResult<object>(null);
-				}
+				downloadFile.ProgressPercentage = args.ProgressPercentage;
+			};
+			try
+			{
+				return webClient.DownloadFileTaskAsync(downloadFile.Uri, downloadFile.TargetFileFullName);
 			}
-
-			//return true;
-
-
-			//FileWebRequest fileWebRequest = WebRequest.CreateDefault(fileUri) as FileWebRequest;
-			//FileWebRequest.
-			//fileWebRequest.AuthenticationLevel=System.Net.Security.AuthenticationLevel.MutualAuthRequested
-			//fileWebRequest.get
+			catch (Exception exception)
+			{
+				downloadFile.Error = exception;
+				return Task.FromResult<object>(null);
+			}
 		}
 
 		[System.Diagnostics.CodeAnalysis.SuppressMessage("AsyncUsage", "AsyncFixer01:Unnecessary async/await usage", Justification = "<Ожидание>")]
@@ -716,48 +496,146 @@ namespace Downloader
 			return await httpClient.PostAsync(requestUri, httpContent, _cancellationToken);
 		}
 
-		//private /*async*/ Task/*<bool>*//*bool*/ DownloadFileAsync(Uri fileUri, string savePath, string fileName)
-		//{
-		//    Console.WriteLine($"DownloadFile: {fileUri}");
+		private HttpClientHandler CreateHttpClientHandler() => new HttpClientHandler { CookieContainer = _cookies };
 
-		//    //if (string.IsNullOrWhiteSpace(savePath))
-		//    //{
-		//    //    // TODO: Зафиксировать ошибку.
-		//    //    return false;
-		//    //}
+		private HttpClient CreateHttpClient(HttpClientHandler httpClientHandler) => new HttpClient(httpClientHandler) { BaseAddress = _baseUri };
 
-		//    //DirectoryInfo directoryInfo = new DirectoryInfo(savePath);
-		//    //if (!directoryInfo.Exists)
-		//    //{
-		//    //    // TODO: Зафиксировать ошибку.
-		//    //    return false;
-		//    //}
+		/// <summary>
+		/// Устанавливает куки для последующих HTTP-запросов.
+		/// </summary>
+		/// <returns><see langword="true"/> - куки установлены успешно; <see langword="false"/> - в противном случае.</returns>
+		private bool SetCookies()
+		{
+			if (_cookies.Count != 0)
+			{
+				return true;
+			}
+			else
+			{
+				CookieContainer cookiesFromDisk = ReadCookiesFromDisk();
+				if (cookiesFromDisk?.Count > 0)
+				{
+					_cookies = cookiesFromDisk;
+					return true;
+				}
 
+				using IWebDriver webDriver = CreateWebDriver();
 
-		//    FileInfo fileInfo = new FileInfo(fileUri.AbsolutePath);
-		//    string fullFileName = Path.Combine(savePath, $"{fileName}{fileInfo.Extension}");
+				bool authorized = Authorize(webDriver);
 
-		//    using (WebClient webClient = new WebClient())
-		//    {
-		//        //try
-		//        //{
-		//        //webClient.DownloadFileAsync(fileUri, fullFileName);
-		//        return webClient.DownloadFileTaskAsync(fileUri, fullFileName);
-		//        //    }
-		//        //    catch (Exception)
-		//        //    {
-		//        //        // TODO: Зафиксировать ошибку.
-		//        //        return false;
-		//        //    }
-		//    }
+				if (authorized)
+				{
+					webDriver.Manage().Window.Minimize();
 
-		//    //return true;
+					webDriver.Manage().Cookies.AllCookies
+						.ToList()
+						.ForEach(cookie => _cookies.Add(new System.Net.Cookie(
+							cookie.Name,
+							HttpUtility.UrlEncode(cookie.Value),
+							cookie.Path,
+							cookie.Domain)));
 
+					WriteCookiesToDisk(_cookies);
+				}
 
-		//    //FileWebRequest fileWebRequest = WebRequest.CreateDefault(fileUri) as FileWebRequest;
-		//    //FileWebRequest.
-		//    //fileWebRequest.AuthenticationLevel=System.Net.Security.AuthenticationLevel.MutualAuthRequested
-		//    //fileWebRequest.get
-		//}
+				webDriver.Quit();
+
+				if (authorized)
+				{
+					return true;
+				}
+				else
+				{
+					// TODO: Зафиксировать ошибку.
+					return false;
+				}
+			}
+		}
+
+		/// <summary>
+		/// Создаёт новый экземпляр Selenium WebDriver с требуемыми настройками.
+		/// </summary>
+		/// <returns>Новый экземпляр Selenium WebDriver.</returns>
+		private IWebDriver CreateWebDriver()
+		{
+			EdgeOptions options = new EdgeOptions
+			{
+				UseChromium = true
+			};
+
+			try
+			{
+				return new EdgeDriver(_settings.WebDriversPath, options);
+			}
+			catch
+			//catch (DriverServiceNotFoundException exception)
+			{
+				// TODO: Зафиксировать ошибку.
+				throw;
+			}
+		}
+
+		/// <summary>
+		/// Сохраняет куки на диск для использования в будущих запусках приложения.
+		/// </summary>
+		/// <param name="cookies">Контейнер с куки.</param>
+		/// <exception cref="SerializationException">Ошибка сериализации куки.</exception>
+		private static void WriteCookiesToDisk(CookieContainer cookies)
+		{
+			FileInfo cookiesFileInfo = new FileInfo(_cookiesfileFullName);
+			if (!Directory.Exists(cookiesFileInfo.DirectoryName))
+			{
+				Directory.CreateDirectory(cookiesFileInfo.DirectoryName);
+			}
+
+			using FileStream fileStream = new FileStream(_cookiesfileFullName, FileMode.Create);
+			BinaryFormatter formatter = new BinaryFormatter();
+
+			try
+			{
+				formatter.Serialize(fileStream, cookies);
+			}
+			catch (SerializationException)
+			{
+				// TODO: Зафиксировать ошибку.
+				//Console.WriteLine("Failed to serialize. Reason: " + exception.Message);
+			}
+			finally
+			{
+				fileStream.Close();
+			}
+		}
+
+		/// <summary>
+		/// Считывает с диска ранее сохранённые куки.
+		/// </summary>
+		/// <returns>Контейнер с куки.</returns>
+		/// <exception cref="SerializationException">Ошибка десериализации куки.</exception>
+		private static CookieContainer ReadCookiesFromDisk()
+		{
+			CookieContainer cookies = null;
+
+			if (File.Exists(_cookiesfileFullName))
+			{
+				using FileStream fileStream = new FileStream(_cookiesfileFullName, FileMode.Open);
+				BinaryFormatter formatter = new BinaryFormatter();
+
+				try
+				{
+					cookies = formatter.Deserialize(fileStream) as CookieContainer;
+				}
+				catch (SerializationException)
+				{
+					// TODO: Зафиксировать ошибку.
+					//Console.WriteLine("Failed to deserialize. Reason: " + exception.Message);
+				}
+				finally
+				{
+					fileStream.Close();
+				}
+			}
+
+			return cookies;
+		}
 	}
 }
