@@ -5,10 +5,11 @@
     <Company>Валерий Гуров</Company>
     <Product>Downloader</Product>
     <Description>Ядро функции для загрузки курсов</Description>
-    <Copyright>Валерий Гуров © 2018</Copyright>
-    <AssemblyVersion>1.0.2.0</AssemblyVersion>
-    <FileVersion>1.0.2.0</FileVersion>
+    <Copyright>Валерий Гуров © 2020</Copyright>
+    <AssemblyVersion>1.1.0.0</AssemblyVersion>
+    <FileVersion>1.1.0.0</FileVersion>
     <LangVersion>latest</LangVersion>
+    <Version>1.1.0</Version>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="AngleSharp" Version="0.14.0" />
