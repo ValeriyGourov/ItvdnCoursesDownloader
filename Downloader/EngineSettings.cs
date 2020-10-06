@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.IO;
 
@@ -9,6 +10,11 @@ namespace Downloader
 	/// </summary>
 	public sealed class EngineSettings : IValidatableObject
 	{
+		/// <summary>
+		/// Адрес сайта. Значение по умолчанию: <see href="https://itvdn.com"/>.
+		/// </summary>
+		public Uri BaseAddress { get; set; } = new Uri("https://itvdn.com");
+
 		/// <summary>
 		/// Логин (адрес электронной почты) для авторизации на сайте.
 		/// </summary>
