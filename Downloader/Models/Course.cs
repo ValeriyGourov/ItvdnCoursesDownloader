@@ -4,79 +4,115 @@ using System.Linq;
 
 namespace Downloader.Models
 {
-    public sealed class Course
-    {
-        private List<DownloadFile> _correctFiles;
-        private List<string> _incorrectFiles;
+	/// <summary>
+	/// Извлечённые данные для загрузки отдельного курса.
+	/// </summary>
+	public sealed class Course
+	{
+		private List<DownloadFile> _correctFiles;
+		private List<string> _incorrectFiles;
 
-        public string Title { get; internal set; }
-        public DownloadFile Materials { get; internal set; }
-        public List<Lesson> Lessons { get; internal set; }
-        public static string MaterialsTitle => "Материалы курса";
+		/// <summary>
+		/// Название курса.
+		/// </summary>
+		public string Title { get; internal set; }
 
-        public List<DownloadFile> CorrectFiles
-        {
-            get
-            {
-                if (_correctFiles == null)
-                {
-                    SetDownloadFiles();
-                }
-                return _correctFiles;
-            }
-        }
+		/// <summary>
+		/// Название курса, не содержащее недопустимых для файлов символов.
+		/// </summary>
+		public string FileSafeTitle { get; internal set; }
 
-        public List<string> IncorrectFiles
-        {
-            get
-            {
-                if (_incorrectFiles == null)
-                {
-                    SetDownloadFiles();
-                }
-                return _incorrectFiles;
-            }
-        }
+		/// <summary>
+		/// Данные для загрузки дополнительных материалов курса.
+		/// </summary>
+		public DownloadFile Materials { get; internal set; }
 
-        internal Course()
-        {
-        }
+		/// <summary>
+		/// Данные для загрузки уроков курса.
+		/// </summary>
+		public List<Lesson> Lessons { get; internal set; }
 
-        private void SetDownloadFiles()
-        {
-            Dictionary<string, DownloadFile> downloadFiles = Lessons
-                .ToDictionary(key => $"({key.Number}) {key.Title}", element => element.Video);
-            if (Materials != null)
-            {
-                // Файла материалов курса может и не быть.
-                downloadFiles.Add(MaterialsTitle, Materials);
-            }
+		/// <summary>
+		/// Название для сохраняемого файла с дополнительными материалами курса.
+		/// </summary>
+		public static string MaterialsTitle => "Материалы курса";
 
-            _correctFiles = new List<DownloadFile>();
-            _incorrectFiles = new List<string>();
+		/// <summary>
+		/// Список файлов курса, данные которых удалось корректно определить.
+		/// </summary>
+		public List<DownloadFile> CorrectFiles
+		{
+			get
+			{
+				if (_correctFiles == null)
+				{
+					SetDownloadFiles();
+				}
+				return _correctFiles;
+			}
+		}
 
-            foreach (var item in downloadFiles)
-            {
-                DownloadFile file = item.Value;
-                if (file != null)
-                {
-                    _correctFiles.Add(file);
-                }
-                else
-                {
-                    _incorrectFiles.Add(item.Key);
-                }
-            }
-        }
+		/// <summary>
+		/// Список определений файлов курса, данные которых не удалось корректно определить.
+		/// </summary>
+		public List<string> IncorrectFiles
+		{
+			get
+			{
+				if (_incorrectFiles == null)
+				{
+					SetDownloadFiles();
+				}
+				return _incorrectFiles;
+			}
+		}
 
-        internal void ChangeSavePath(string savePath)
-        {
-            if (string.IsNullOrWhiteSpace(savePath))
-            {
-                throw new ArgumentNullException(nameof(savePath));
-            }
+		internal Course()
+		{
+		}
 
-            CorrectFiles.ForEach(file => file.SavePath = savePath);
-        }
-    }
+		/// <summary>
+		/// Заполняет списки файлов для загрузки и данные которых получить не удалось.
+		/// </summary>
+		private void SetDownloadFiles()
+		{
+			Dictionary<string, DownloadFile> downloadFiles = Lessons
+				.ToDictionary(key => $"({key.Number}) {key.Title}", element => element.Video);
+			if (Materials != null)
+			{
+				// Файла материалов курса может и не быть.
+				downloadFiles.Add(MaterialsTitle, Materials);
+			}
+
+			_correctFiles = new List<DownloadFile>();
+			_incorrectFiles = new List<string>();
+
+			foreach (KeyValuePair<string, DownloadFile> item in downloadFiles)
+			{
+				DownloadFile file = item.Value;
+				if (file != null)
+				{
+					_correctFiles.Add(file);
+				}
+				else
+				{
+					_incorrectFiles.Add(item.Key);
+				}
+			}
+		}
+
+		/// <summary>
+		/// Изменяет для загружаемых файлов путь сохранения на указанный.
+		/// </summary>
+		/// <param name="savePath">Новый путь сохранения файлов.</param>
+		internal void ChangeSavePath(string savePath)
+		{
+			if (string.IsNullOrWhiteSpace(savePath))
+			{
+				throw new ArgumentNullException(nameof(savePath));
+			}
+
+			CorrectFiles.ForEach(file => file.SavePath = savePath);
+		}
+	}
 }

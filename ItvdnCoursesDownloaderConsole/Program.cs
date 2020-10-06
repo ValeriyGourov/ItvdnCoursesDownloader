@@ -16,7 +16,6 @@ namespace ItvdnCoursesDownloaderConsole
 	internal class Program
 	{
 		private static Engine _engine;
-		private static Course _course;
 		private static readonly object _consoleWriterLock = new object();
 
 		private static async Task Main(string[] args)
@@ -122,6 +121,10 @@ namespace ItvdnCoursesDownloaderConsole
 			return appSettings;
 		}
 
+		/// <summary>
+		/// Выводит общую информацию сеанса загрузки данных.
+		/// </summary>
+		/// <param name="engineSettings">Настройки движка загрузки данных.</param>
 		private static void ShowInfo(EngineSettings engineSettings)
 		{
 			Console.WriteLine("Адрес электронной почты: " + engineSettings.Email);
@@ -129,6 +132,10 @@ namespace ItvdnCoursesDownloaderConsole
 			Console.WriteLine(new string('-', Console.WindowWidth));
 		}
 
+		/// <summary>
+		/// Выводит в стандартный выходной поток сообщений об ошибках очередное сообщение.
+		/// </summary>
+		/// <param name="errorMessage">Текст сообщения об ошибке.</param>
 		private static async Task ShowErrorMessageAsync(string errorMessage)
 		{
 			Console.BackgroundColor = ConsoleColor.Black;
@@ -162,22 +169,24 @@ namespace ItvdnCoursesDownloaderConsole
 
 		private static async Task<bool> DownloadCourseAsync(Uri uri)
 		{
+			Course course = null;
+
 			try
 			{
-				_course = await _engine.GetCourseAsync(uri);
+				course = await _engine.GetCourseAsync(uri);
 			}
 			catch (Exception exception)
 			{
 				await ShowErrorMessageAsync(exception.Message);
 			}
 
-			if (_course == null)
+			if (course == null)
 			{
 				Console.WriteLine("Данные не получены.");
 				return false;
 			}
 
-			if (string.IsNullOrWhiteSpace(_course.Title))
+			if (string.IsNullOrWhiteSpace(course.Title))
 			{
 				Console.WriteLine("Не удалось извлечь данные курса.");
 			}
@@ -185,13 +194,13 @@ namespace ItvdnCoursesDownloaderConsole
 			{
 				Console.Clear();
 				Console.BackgroundColor = ConsoleColor.Blue;
-				Console.WriteLine(_course.Title);
+				Console.WriteLine(course.Title);
 				Console.ResetColor();
 
-				if (_course.IncorrectFiles.Count > 0)
+				if (course.IncorrectFiles.Count > 0)
 				{
 					Console.WriteLine("Не удалось получить ссылки для следующих файлов:");
-					foreach (string fileTitle in _course.IncorrectFiles)
+					foreach (string fileTitle in course.IncorrectFiles)
 					{
 						Console.WriteLine($" - {fileTitle}");
 					}
@@ -201,17 +210,18 @@ namespace ItvdnCoursesDownloaderConsole
 					Console.WriteLine("Файлы курса:");
 					Console.CursorVisible = false;
 
-					// TODO: Убрать заглушку.
-					Console.WriteLine("Заглушка - загрузка файлов");
-					//await DownloadFiles(_course.CorrectFiles);
+					await DownloadFilesAsync(course);
+					//await ShowErrorMessageAsync("Заглушка - загрузка файлов");    // TODO: Убрать заглушку.
 				}
 			}
 
 			return true;
 		}
 
-		private static async Task DownloadFilesAsync(List<DownloadFile> downloadFiles)
+		private static async Task DownloadFilesAsync(Course course)
 		{
+			List<DownloadFile> downloadFiles = course.CorrectFiles;
+
 			foreach (DownloadFile file in downloadFiles)
 			{
 				int cursorTop = Console.CursorTop;
@@ -235,7 +245,7 @@ namespace ItvdnCoursesDownloaderConsole
 
 			int footerCursorTop = Console.CursorTop;
 
-			bool result = await _engine.DownloadFilesAsync(_course);
+			bool result = await _engine.DownloadFilesAsync(course);
 
 			Console.CursorVisible = true;
 			Console.CursorTop = footerCursorTop;
@@ -267,24 +277,6 @@ namespace ItvdnCoursesDownloaderConsole
 				DownloadFileStatus.Completed => ConsoleColor.Green,
 				_ => Console.ForegroundColor,
 			};
-			//switch (file.Status)
-			//{
-			//	case DownloadFileStatus.InProgress:
-			//		color = ConsoleColor.Yellow;
-			//		break;
-
-			//	case DownloadFileStatus.Error:
-			//		color = ConsoleColor.Red;
-			//		break;
-
-			//	case DownloadFileStatus.Completed:
-			//		color = ConsoleColor.Green;
-			//		break;
-
-			//	default:
-			//		color = Console.ForegroundColor;
-			//		break;
-			//}
 
 			lock (_consoleWriterLock)
 			{
