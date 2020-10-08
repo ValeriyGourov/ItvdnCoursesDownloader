@@ -22,7 +22,7 @@ namespace ItvdnCoursesDownloaderConsole
 		{
 			IConfiguration configuration = new ConfigurationBuilder()
 				.AddJsonFile("appsettings.json", true, true)
-				.AddUserSecrets<Program>()
+				.AddUserSecrets<Program>(true, true)
 				.AddCommandLine(args)
 				.Build();
 
@@ -80,6 +80,11 @@ namespace ItvdnCoursesDownloaderConsole
 		private static async Task<AppSettings> GetSettingsAsync(IConfiguration configuration)
 		{
 			AppSettings appSettings = configuration.Get<AppSettings>();
+			if (appSettings is null)
+			{
+				await ShowErrorMessageAsync("Не найдены параметры приложения.");
+				return null;
+			}
 
 			List<ValidationResult> validationResults = new List<ValidationResult>();
 
