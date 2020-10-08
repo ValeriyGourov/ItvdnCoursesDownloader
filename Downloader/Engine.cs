@@ -146,7 +146,9 @@ namespace Downloader
 			Task waitTask = Task.WhenAll(tasks);
 
 			bool succsess = true;
-			await waitTask.ContinueWith(task => succsess = !task.IsFaulted);
+			await waitTask
+				.ContinueWith(task => succsess = !task.IsFaulted)
+				.ConfigureAwait(false);
 
 			return succsess;
 		}

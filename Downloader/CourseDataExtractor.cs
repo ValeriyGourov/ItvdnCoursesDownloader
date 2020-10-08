@@ -56,9 +56,9 @@ namespace Downloader
 		private static readonly char[] _invalidFileNameChars = Path.GetInvalidFileNameChars();
 
 		/// <summary>
-		/// Параметры сериализатора JSON, используемые при извлечении из JavaScript веб-страницы конфигурации загрузки видео файлов.
+		/// Параметры сериализатора JSON, используемые при извлечении из JavaScript веб-страницы требуемых данных.
 		/// </summary>
-		private static readonly JsonSerializerOptions _videoListDefinitionJsonSerializerOptions = new JsonSerializerOptions() { PropertyNameCaseInsensitive = true };
+		private static readonly JsonSerializerOptions _jsonSerializerOptions = new JsonSerializerOptions() { PropertyNameCaseInsensitive = true };
 
 		/// <summary>
 		/// Основной конструктор.
@@ -85,7 +85,7 @@ namespace Downloader
 		/// <returns>Объект с данными для загрузки файлов курса.</returns>
 		public async Task<Course> ExtractAsync()
 		{
-			IHtmlDocument document = await GetDocumentAsync(_courseUri);
+			IHtmlDocument document = await GetDocumentAsync(_courseUri).ConfigureAwait(false);
 			if (document == null)
 			{
 				return null;
@@ -102,10 +102,10 @@ namespace Downloader
 				lessonTasks = lessons.Select(lesson => SetLessonVideoAsync(lesson));
 			}
 
-			Uri materialsUri = await materialsUriTask;
+			Uri materialsUri = await materialsUriTask.ConfigureAwait(false);
 			if (lessonTasks != null)
 			{
-				await Task.WhenAll(lessonTasks);
+				await Task.WhenAll(lessonTasks).ConfigureAwait(false);
 			}
 
 			return new Course
@@ -124,7 +124,7 @@ namespace Downloader
 		/// </summary>
 		/// <param name="uri">Адрес загружаемого документа.</param>
 		/// <param name="referrer">Значение заголовка Referer для HTTP-запроса.</param>
-		/// <returns></returns>
+		/// <returns>Загруженный HTML-документ.</returns>
 		private async Task<IHtmlDocument> GetDocumentAsync(Uri uri, Uri referrer = null)
 		{
 			string html = null;
@@ -146,11 +146,15 @@ namespace Downloader
 			httpRequest.Headers.AcceptEncoding.Add(new StringWithQualityHeaderValue("gzip"));
 			httpRequest.Headers.AcceptEncoding.Add(new StringWithQualityHeaderValue("deflate"));
 
-			using HttpResponseMessage response = await httpClient.SendAsync(httpRequest, _cancellationToken);
+			using HttpResponseMessage response = await httpClient
+				.SendAsync(httpRequest, _cancellationToken)
+				.ConfigureAwait(false);
 			//response.EnsureSuccessStatusCode();
 			if (response.IsSuccessStatusCode)
 			{
-				html = await response.Content.ReadAsStringAsync();
+				html = await response.Content
+					.ReadAsStringAsync()
+					.ConfigureAwait(false);
 			}
 			else
 			{
@@ -159,7 +163,9 @@ namespace Downloader
 
 			return html == null
 				? null
-				: await new HtmlParser().ParseDocumentAsync(html, _cancellationToken);
+				: await new HtmlParser()
+					.ParseDocumentAsync(html, _cancellationToken)
+					.ConfigureAwait(false);
 		}
 
 		/// <summary>
@@ -197,11 +203,13 @@ namespace Downloader
 					linkToMaterials
 				};
 
-				using HttpResponseMessage response = await PostAsJsonAsync(httpClient, requestUri, content);
+				using HttpResponseMessage response = await PostAsJsonAsync(httpClient, requestUri, content).ConfigureAwait(false);
 				//response.EnsureSuccessStatusCode();
 				if (response.IsSuccessStatusCode)
 				{
-					string jsonString = await response.Content.ReadAsStringAsync();
+					string jsonString = await response.Content
+						.ReadAsStringAsync()
+						.ConfigureAwait(false);
 					materialsUrl = JsonSerializer.Deserialize<string>(jsonString);
 				}
 				else
@@ -252,8 +260,7 @@ namespace Downloader
 					Title = linkTag?
 						.GetElementsByClassName("lsn-name-wrapper")
 						.FirstOrDefault()?
-						.TextContent,
-					Id = idTag?.GetAttribute("data-lesson-id")
+						.TextContent
 				};
 			return query.ToList();
 		}
@@ -264,8 +271,14 @@ namespace Downloader
 		/// <param name="lesson">Данные урока курса.</param>
 		private async Task SetLessonVideoAsync(Lesson lesson)
 		{
-			IHtmlDocument lessonDocument = await GetDocumentAsync(lesson.Uri, lesson.Uri);
-			if (lessonDocument == null)
+			IHtmlDocument lessonDocument = await GetDocumentAsync(lesson.Uri, lesson.Uri).ConfigureAwait(false);
+			if (lessonDocument is null)
+			{
+				return;
+			}
+
+			LessonSettings lessonSettings = GetLessonSettingsFromDocument(lessonDocument);
+			if (lessonSettings is null)
 			{
 				return;
 			}
@@ -273,18 +286,21 @@ namespace Downloader
 			Uri requestUri = new Uri(_settings.BaseAddress, "Video/GetVideoId");
 			var content = new
 			{
-				lessonId = lesson.Id
+				lessonUrl = lessonSettings.LessonUrl,
+				courseUrl = lessonSettings.VideosetUrl
 			};
 
 			using HttpClientHandler httpClientHandler = CreateHttpClientHandler();
 			using HttpClient httpClient = CreateHttpClient(httpClientHandler);
-			using HttpResponseMessage response = await PostAsJsonAsync(httpClient, requestUri, content);
+			using HttpResponseMessage response = await PostAsJsonAsync(httpClient, requestUri, content).ConfigureAwait(false);
 			//response.EnsureSuccessStatusCode();
 
 			VideoIdResponse videoIdResponse;
 			if (response.IsSuccessStatusCode)
 			{
-				string responseContent = await response.Content.ReadAsStringAsync();
+				string responseContent = await response.Content
+					.ReadAsStringAsync()
+					.ConfigureAwait(false);
 				videoIdResponse = JsonSerializer.Deserialize<VideoIdResponse>(responseContent);
 			}
 			else
@@ -301,8 +317,8 @@ namespace Downloader
 
 			const string appId = "122963";
 			string frameUrl = $"https://player.vimeo.com/video/{videoIdResponse.Id}?app_id={appId}";
-			IHtmlDocument frame = await GetDocumentAsync(new Uri(frameUrl), lesson.Uri);
-			string javaScript = GetJavaScriptFromFrame(frame);
+			IHtmlDocument frame = await GetDocumentAsync(new Uri(frameUrl), lesson.Uri).ConfigureAwait(false);
+			string javaScript = GetVideoConfigScript(frame);
 
 			Uri videoUri = GetVideoUri(javaScript);
 			lesson.Video = new DownloadFile(videoUri)
@@ -312,11 +328,65 @@ namespace Downloader
 		}
 
 		/// <summary>
+		/// Извлекает настройки урока из страницы этого урока.
+		/// </summary>
+		/// <param name="document">Документ станицы.</param>
+		/// <returns>Настройки урока, необходимые для загрузки файла видео.</returns>
+		private LessonSettings GetLessonSettingsFromDocument(IHtmlDocument document)
+		{
+			string lessonSettingsScript = GetLessonSettingsScript(document);
+
+			const string dataVariableName = "settings";
+			Expression evaluateExpressionFunc(Program program) =>
+				(from programBody in program.Body
+				 where program.Body.Count == 1
+				 let body = programBody as VariableDeclaration
+				 from declaration in body.Declarations
+				 where declaration.Id.Name.Equals(dataVariableName, StringComparison.OrdinalIgnoreCase)
+				 select declaration.Init)
+				 .FirstOrDefault();
+
+			return GetJsonDataFromJavaScript<LessonSettings>(lessonSettingsScript, evaluateExpressionFunc);
+		}
+
+		/// <summary>
 		/// Извлекает из сценария вложенного содержимого страницы урока адрес для загрузки файла видео урока.
 		/// </summary>
 		/// <param name="javaScript">Сценарий вложенного содержимого страницы урока.</param>
 		/// <returns>Адрес для загрузки файла видео урока.</returns>
 		private static Uri GetVideoUri(string javaScript)
+		{
+			const string dataVariableName = "config";
+			Expression evaluateExpressionFunc(Program program) =>
+				(from programBody in program.Body
+				 where program.Body.Count == 1
+				 let body = programBody as ExpressionStatement
+				 let expression = body?.Expression as CallExpression
+				 let callee = expression?.Callee as FunctionExpression
+				 from variableDeclaration in callee.VariableDeclarations
+				 from declaration in variableDeclaration.Declarations
+				 where declaration.Id.Name.Equals(dataVariableName, StringComparison.OrdinalIgnoreCase)
+				 select declaration.Init)
+				 .FirstOrDefault();
+
+			VideoListDefinition videoList = GetJsonDataFromJavaScript<VideoListDefinition>(javaScript, evaluateExpressionFunc);
+			return videoList?.Request.Files.Progressive
+				.OrderByDescending(item => item.Quality)
+				.FirstOrDefault()?
+				.Url;
+		}
+
+		/// <summary>
+		/// Извлекает из текста JavaScript данные, представленные экземпляром типа <typeparamref name="T"/>.
+		/// </summary>
+		/// <typeparam name="T">Тип, к которому нужно преобразовать извлечённые данные.</typeparam>
+		/// <param name="javaScript">Текст JavaScript.</param>
+		/// <param name="evaluateExpressionFunc">Выражение для извлечения нужных данных из разобранного парсером <see cref="JavaScriptParser"/> текста JavaScript.</param>
+		/// <returns>Данные, извлечённые из текста сценария.</returns>
+		private static T GetJsonDataFromJavaScript<T>(
+			string javaScript,
+			Func<Program, Expression> evaluateExpressionFunc)
+			where T : class
 		{
 			if (string.IsNullOrWhiteSpace(javaScript))
 			{
@@ -326,18 +396,7 @@ namespace Downloader
 			JavaScriptParser javaScriptParser = new JavaScriptParser();
 			Program program = javaScriptParser.Parse(javaScript);
 
-			Expression init =
-				(from programBody in program.Body
-				 where program.Body.Count == 1
-				 let body = programBody as ExpressionStatement
-				 let expression = body?.Expression as CallExpression
-				 let callee = expression?.Callee as FunctionExpression
-				 from variableDeclaration in callee.VariableDeclarations
-				 from declaration in variableDeclaration.Declarations
-				 where declaration.Id.Name.Equals("config", StringComparison.OrdinalIgnoreCase)
-				 select declaration.Init)
-				 .FirstOrDefault();
-
+			Expression init = evaluateExpressionFunc(program);
 			if (init == null)
 			{
 				// TODO; Зафиксировать ошибку.
@@ -348,17 +407,11 @@ namespace Downloader
 			JsValue initObject = jintEngine.EvaluateExpression(init) as JsValue;
 
 			Jint.Native.Json.JsonSerializer jsonSerializer = new Jint.Native.Json.JsonSerializer(jintEngine);
-			string configJson = jsonSerializer
+			string jsonString = jsonSerializer
 				.Serialize(initObject, new JsValue(""), new JsValue(" "))
 				.AsString();
 
-			VideoListDefinition videoList = JsonSerializer.Deserialize<VideoListDefinition>(
-				configJson,
-				_videoListDefinitionJsonSerializerOptions);
-			return videoList.Request.Files.Progressive
-				.OrderByDescending(item => item.Quality)
-				.FirstOrDefault()?
-				.Url;
+			return JsonSerializer.Deserialize<T>(jsonString, _jsonSerializerOptions);
 		}
 
 		/// <summary>
@@ -374,7 +427,9 @@ namespace Downloader
 			using HttpContent httpContent = new StringContent(jsonContent, Encoding.UTF8, "application/json");
 
 			// Здесь мы должны явно получить ответ, пока httpContent не вышел за пределы блока using.
-			HttpResponseMessage responseMessage = await httpClient.PostAsync(requestUri, httpContent, _cancellationToken);
+			HttpResponseMessage responseMessage = await httpClient
+				.PostAsync(requestUri, httpContent, _cancellationToken)
+				.ConfigureAwait(false);
 			return responseMessage;
 		}
 
@@ -391,9 +446,33 @@ namespace Downloader
 		/// <returns>Клиент для работы с HTTP-запросами.</returns>
 		private HttpClient CreateHttpClient(HttpClientHandler httpClientHandler) => new HttpClient(httpClientHandler) { BaseAddress = _settings.BaseAddress };
 
-		private static string GetJavaScriptFromFrame(IHtmlDocument document) => document
-			.GetElementsByTagName("script")
-			.Where(item => item.ParentElement.TagName.Equals("body", StringComparison.OrdinalIgnoreCase))
+		/// <summary>
+		/// Извлекает элемент script страницы, содержащий конфигурацию файлов видео.
+		/// </summary>
+		/// <param name="document">Документ станицы.</param>
+		/// <returns>Извлечённый JavaScript.</returns>
+		private static string GetVideoConfigScript(IHtmlDocument document) => GetScriptFromDocument(
+			document,
+			item => item.ParentElement.TagName.Equals("body", StringComparison.OrdinalIgnoreCase));
+
+		/// <summary>
+		/// Извлекает элемент script страницы, содержащий настройки конкретного урока.
+		/// </summary>
+		/// <param name="document">Документ станицы.</param>
+		/// <returns>Извлечённый JavaScript.</returns>
+		private static string GetLessonSettingsScript(IHtmlDocument document) => GetScriptFromDocument(
+			document,
+			item => item.ParentElement.ClassName?.Equals("video-player-wrapper", StringComparison.OrdinalIgnoreCase) == true);
+
+		/// <summary>
+		/// Извлекает из HTML-документа текст сценария.
+		/// </summary>
+		/// <param name="document">Документ станицы.</param>
+		/// <param name="predicate">Условие поиска требуемого элемента, содержащего сценарий.</param>
+		/// <returns>Текст сценария. Если требуемый элемент не найден, будет возвращено значение <see langword="null"/>.</returns>
+		private static string GetScriptFromDocument(IHtmlDocument document, Func<IElement, bool> predicate) => document
+			.Scripts
+			.Where(predicate)
 			.FirstOrDefault()?
 			.TextContent;
 
