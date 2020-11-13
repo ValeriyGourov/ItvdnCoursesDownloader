@@ -225,8 +225,12 @@ namespace Downloader
 				CookieContainer cookiesFromDisk = ReadCookiesFromDisk();
 				if (cookiesFromDisk?.Count > 0)
 				{
-					_cookies = cookiesFromDisk;
-					return true;
+					CookieCollection cookies = cookiesFromDisk.GetCookies(_settings.BaseAddress);
+					if (cookies.All(cookie => !cookie.Expired))
+					{
+						_cookies = cookiesFromDisk;
+						return true;
+					}
 				}
 
 				using IWebDriver webDriver = CreateWebDriver();
@@ -237,13 +241,20 @@ namespace Downloader
 				{
 					webDriver.Manage().Window.Minimize();
 
-					webDriver.Manage().Cookies.AllCookies
-						.ToList()
-						.ForEach(cookie => _cookies.Add(new System.Net.Cookie(
-							cookie.Name,
-							HttpUtility.UrlEncode(cookie.Value),
-							cookie.Path,
-							cookie.Domain)));
+					foreach (OpenQA.Selenium.Cookie seleniumCookie in webDriver.Manage().Cookies.AllCookies)
+					{
+						System.Net.Cookie newCookie = new(
+							seleniumCookie.Name,
+							HttpUtility.UrlEncode(seleniumCookie.Value),
+							seleniumCookie.Path,
+							seleniumCookie.Domain)
+						{
+							Expires = seleniumCookie.Expiry ?? default,
+							HttpOnly = seleniumCookie.IsHttpOnly,
+							Secure = seleniumCookie.Secure
+						};
+						_cookies.Add(newCookie);
+					}
 
 					WriteCookiesToDisk(_cookies);
 				}
