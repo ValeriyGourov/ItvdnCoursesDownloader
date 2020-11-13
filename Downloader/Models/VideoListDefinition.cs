@@ -6,41 +6,11 @@ namespace Downloader.Models
 	/// <summary>
 	/// Определение списка видео, извлекаемое из конфигурации на странице курса.
 	/// </summary>
-	internal sealed class VideoListDefinition
-	{
-		private VideoListDefinition()
-		{
-		}
+	internal sealed record VideoListDefinition(VideoRequest Request);
 
-		public VideoRequest Request { get; set; }
-	}
+	internal sealed record VideoRequest(VideoFile Files);
 
-	internal sealed class VideoRequest
-	{
-		private VideoRequest()
-		{
-		}
+	internal sealed record VideoFile(IEnumerable<ProgressiveItem> Progressive);
 
-		public VideoFile Files { get; set; }
-	}
-
-	internal sealed class VideoFile
-	{
-		private VideoFile()
-		{
-		}
-
-		public IEnumerable<ProgressiveItem> Progressive { get; set; }
-	}
-
-	internal sealed class ProgressiveItem
-	{
-		private ProgressiveItem()
-		{
-		}
-
-		public int Profile { get; set; }
-		public Uri Url { get; set; }
-		public string Quality { get; set; }
-	}
+	internal sealed record ProgressiveItem(int Profile, Uri Url, string Quality);
 }
