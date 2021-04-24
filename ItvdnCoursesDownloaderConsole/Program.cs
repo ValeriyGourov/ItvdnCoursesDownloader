@@ -119,21 +119,6 @@ namespace ItvdnCoursesDownloaderConsole
 
 					await ShowErrorMessageAsync(errorMessageBuilder.ToString());
 				}
-				//validationResults.ForEach(async error =>
-				//{
-				//	errorMessageBuilder.Clear();
-				//	errorMessageBuilder.Append(error.ErrorMessage);
-
-				//	if (error.MemberNames.Any())
-				//	{
-				//		errorMessageBuilder
-				//			.Append("\r\n\t")
-				//			.Append("Параметры: ")
-				//			.AppendJoin(',', error.MemberNames);
-				//	}
-
-				//	await ShowErrorMessageAsync(errorMessageBuilder.ToString());
-				//});
 
 				return null;
 			}
