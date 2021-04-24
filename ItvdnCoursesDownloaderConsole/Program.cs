@@ -16,7 +16,7 @@ namespace ItvdnCoursesDownloaderConsole
 	internal class Program
 	{
 		private static Engine _engine;
-		private static readonly object _consoleWriterLock = new object();
+		private static readonly object _consoleWriterLock = new();
 
 		private static async Task Main(string[] args)
 		{
@@ -32,7 +32,7 @@ namespace ItvdnCoursesDownloaderConsole
 				return;
 			}
 
-			using CancellationTokenSource cancellation = new CancellationTokenSource();
+			using CancellationTokenSource cancellation = new();
 
 			_engine = new Engine(appSettings.Engine, cancellation.Token);
 
@@ -86,7 +86,7 @@ namespace ItvdnCoursesDownloaderConsole
 				return null;
 			}
 
-			List<ValidationResult> validationResults = new List<ValidationResult>();
+			List<ValidationResult> validationResults = new();
 
 			Validator.TryValidateObject(
 				appSettings,
@@ -103,8 +103,8 @@ namespace ItvdnCoursesDownloaderConsole
 			{
 				await ShowErrorMessageAsync("Ошибки в параметрах приложения:");
 
-				StringBuilder errorMessageBuilder = new StringBuilder();
-				validationResults.ForEach(async error =>
+				StringBuilder errorMessageBuilder = new();
+				foreach (ValidationResult error in validationResults)
 				{
 					errorMessageBuilder.Clear();
 					errorMessageBuilder.Append(error.ErrorMessage);
@@ -118,7 +118,7 @@ namespace ItvdnCoursesDownloaderConsole
 					}
 
 					await ShowErrorMessageAsync(errorMessageBuilder.ToString());
-				});
+				}
 
 				return null;
 			}
@@ -295,7 +295,7 @@ namespace ItvdnCoursesDownloaderConsole
 		private static string GetErrorDescription(Exception exception)
 		{
 			Exception currentException = exception;
-			List<string> errorMessages = new List<string>();
+			List<string> errorMessages = new();
 			do
 			{
 				errorMessages.Add(currentException.Message);

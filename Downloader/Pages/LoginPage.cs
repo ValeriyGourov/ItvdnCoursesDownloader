@@ -1,4 +1,9 @@
 ﻿using System;
+using System.Linq;
+using System.Threading;
+
+using AngleSharp.Html.Dom;
+using AngleSharp.Html.Parser;
 
 using OpenQA.Selenium;
 using OpenQA.Selenium.Support.UI;
@@ -46,7 +51,11 @@ namespace Downloader.Pages
 				.FindElement(By.ClassName("remember-me"))
 				.Click();
 
-			WebDriverWait wait = new WebDriverWait(_webDriver, TimeSpan.FromMinutes(10));
+			WebDriverWait wait = new(
+				new SystemClock(),
+				_webDriver,
+				TimeSpan.FromMinutes(10),
+				TimeSpan.FromSeconds(5));
 
 			// Ожидание решения recaptcha.
 			IWebElement iframe = _webDriver
@@ -66,11 +75,15 @@ namespace Downloader.Pages
 				.FindElement(By.ClassName("btn-orange-border-black-font"))
 				.Click();
 
-			// Ожидаем пока у кнопки авторизации заголовок станет равным адресу электронной почты. Это будет означать, что авторизация прошла успешно.
-			wait.Until(drv => drv
-				.FindElement(By.ClassName("top-header"))
-				.FindElement(By.ClassName("cabinet-btn-title"))
-				.Text.Equals(email, StringComparison.OrdinalIgnoreCase));
+			// Ожидаем пока свойство успешной аутентификации не станет равно true.
+			wait.Until(async drv =>
+			{
+				IHtmlDocument document = await new HtmlParser()
+					.ParseDocumentAsync(drv.PageSource, CancellationToken.None);
+				return document.Scripts.Any(script => script.Text.Equals(
+					"window.userIsAuthenticated=\"True\";",
+					StringComparison.OrdinalIgnoreCase));
+			});
 		}
 	}
 }

@@ -42,7 +42,7 @@ namespace Downloader
 		/// <inheritdoc/>
 		public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
 		{
-			List<ValidationResult> errors = new List<ValidationResult>();
+			List<ValidationResult> errors = new();
 
 			if (!Path.IsPathFullyQualified(SavePath))
 			{

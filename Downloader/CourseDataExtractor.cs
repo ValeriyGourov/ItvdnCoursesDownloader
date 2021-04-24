@@ -58,7 +58,7 @@ namespace Downloader
 		/// <summary>
 		/// Параметры сериализатора JSON, используемые при извлечении из JavaScript веб-страницы требуемых данных.
 		/// </summary>
-		private static readonly JsonSerializerOptions _jsonSerializerOptions = new JsonSerializerOptions() { PropertyNameCaseInsensitive = true };
+		private static readonly JsonSerializerOptions _jsonSerializerOptions = new() { PropertyNameCaseInsensitive = true };
 
 		/// <summary>
 		/// Основной конструктор.
@@ -133,7 +133,7 @@ namespace Downloader
 			httpClientHandler.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
 
 			using HttpClient httpClient = CreateHttpClient(httpClientHandler);
-			using HttpRequestMessage httpRequest = new HttpRequestMessage()
+			using HttpRequestMessage httpRequest = new()
 			{
 				RequestUri = uri,
 				Method = HttpMethod.Get,
@@ -193,7 +193,7 @@ namespace Downloader
 			string materialsUrl = null;
 			if (Uri.IsWellFormedUriString(linkToMaterials, UriKind.Absolute))
 			{
-				Uri requestUri = new Uri(_settings.BaseAddress, "Video/GetLinkToMaterials");
+				Uri requestUri = new(_settings.BaseAddress, "Video/GetLinkToMaterials");
 
 				using HttpClientHandler httpClientHandler = CreateHttpClientHandler();
 				using HttpClient httpClient = CreateHttpClient(httpClientHandler);
@@ -283,7 +283,7 @@ namespace Downloader
 				return;
 			}
 
-			Uri requestUri = new Uri(_settings.BaseAddress, "Video/GetVideoId");
+			Uri requestUri = new(_settings.BaseAddress, "Video/GetVideoId");
 			var content = new
 			{
 				lessonUrl = lessonSettings.LessonUrl,
@@ -393,7 +393,7 @@ namespace Downloader
 				return null;
 			}
 
-			JavaScriptParser javaScriptParser = new JavaScriptParser();
+			JavaScriptParser javaScriptParser = new();
 			Program program = javaScriptParser.Parse(javaScript);
 
 			Expression init = evaluateExpressionFunc(program);
@@ -403,10 +403,10 @@ namespace Downloader
 				return null;
 			}
 
-			Jint.Engine jintEngine = new Jint.Engine();
+			Jint.Engine jintEngine = new();
 			JsValue initObject = jintEngine.EvaluateExpression(init) as JsValue;
 
-			Jint.Native.Json.JsonSerializer jsonSerializer = new Jint.Native.Json.JsonSerializer(jintEngine);
+			Jint.Native.Json.JsonSerializer jsonSerializer = new(jintEngine);
 			string jsonString = jsonSerializer
 				.Serialize(initObject, new JsValue(""), new JsValue(" "))
 				.AsString();
@@ -437,14 +437,14 @@ namespace Downloader
 		/// Создаёт обработчик сообщений для <see cref="HttpClient"/> с требуемыми параметрами.
 		/// </summary>
 		/// <returns>Обработчик сообщений для <see cref="HttpClient"/>.</returns>
-		private HttpClientHandler CreateHttpClientHandler() => new HttpClientHandler { CookieContainer = _cookies };
+		private HttpClientHandler CreateHttpClientHandler() => new() { CookieContainer = _cookies };
 
 		/// <summary>
 		/// Создаёт клиента для работы с HTTP-запросами с требуемыми параметрами.
 		/// </summary>
 		/// <param name="httpClientHandler">Обработчик сообщений для <see cref="HttpClient"/>.</param>
 		/// <returns>Клиент для работы с HTTP-запросами.</returns>
-		private HttpClient CreateHttpClient(HttpClientHandler httpClientHandler) => new HttpClient(httpClientHandler) { BaseAddress = _settings.BaseAddress };
+		private HttpClient CreateHttpClient(HttpClientHandler httpClientHandler) => new(httpClientHandler) { BaseAddress = _settings.BaseAddress };
 
 		/// <summary>
 		/// Извлекает элемент script страницы, содержащий конфигурацию файлов видео.
