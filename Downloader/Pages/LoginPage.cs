@@ -46,7 +46,7 @@ namespace Downloader.Pages
 				.FindElement(By.ClassName("remember-me"))
 				.Click();
 
-			WebDriverWait wait = new WebDriverWait(_webDriver, TimeSpan.FromMinutes(10));
+			WebDriverWait wait = new(_webDriver, TimeSpan.FromMinutes(10));
 
 			// Ожидание решения recaptcha.
 			IWebElement iframe = _webDriver

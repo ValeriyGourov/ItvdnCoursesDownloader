@@ -38,7 +38,7 @@ namespace Downloader
 		/// <summary>
 		/// Контейнер для хранения куки сайта курсов между запросами.
 		/// </summary>>
-		private CookieContainer _cookies = new CookieContainer();
+		private CookieContainer _cookies = new();
 
 		/// <summary>
 		/// Имя папки для сохранения служебных файлов приложения.
@@ -66,7 +66,7 @@ namespace Downloader
 		/// <exception cref="EngineSettingsValidationException">Некорректные настройки движка.</exception>
 		public Engine(EngineSettings settings, CancellationToken cancellationToken)
 		{
-			List<ValidationResult> validationResults = new List<ValidationResult>();
+			List<ValidationResult> validationResults = new();
 
 			if (!Validator.TryValidateObject(
 				settings,
@@ -106,11 +106,7 @@ namespace Downloader
 				return null;
 			}
 
-			CourseDataExtractor courseDataExtractor = new CourseDataExtractor(
-				courseUri,
-				_settings,
-				_cookies,
-				_cancellationToken);
+			CourseDataExtractor courseDataExtractor = new(courseUri, _settings, _cookies, _cancellationToken);
 			return courseDataExtractor.ExtractAsync();
 		}
 
@@ -162,7 +158,7 @@ namespace Downloader
 		{
 			bool authorized = true;
 
-			LoginPage loginPage = new LoginPage(webDriver, _settings.BaseAddress);
+			LoginPage loginPage = new(webDriver, _settings.BaseAddress);
 			try
 			{
 				loginPage.Authorize(_settings.Email, _settings.Password);
@@ -182,7 +178,7 @@ namespace Downloader
 		/// <param name="downloadFile">Описание загружаемого файла.</param>
 		private Task DownloadFileAsync(DownloadFile downloadFile)
 		{
-			using WebClient webClient = new WebClient();
+			using WebClient webClient = new();
 
 			_cancellationToken.Register(webClient.CancelAsync);
 			webClient.Headers.Add(HttpRequestHeader.Cookie, _cookies.GetCookieHeader(_settings.BaseAddress));
@@ -279,7 +275,7 @@ namespace Downloader
 		/// <returns>Новый экземпляр Selenium WebDriver.</returns>
 		private IWebDriver CreateWebDriver()
 		{
-			EdgeOptions options = new EdgeOptions
+			EdgeOptions options = new()
 			{
 				UseChromium = true
 			};
@@ -303,14 +299,14 @@ namespace Downloader
 		/// <exception cref="SerializationException">Ошибка сериализации куки.</exception>
 		private static void WriteCookiesToDisk(CookieContainer cookies)
 		{
-			FileInfo cookiesFileInfo = new FileInfo(_cookiesfileFullName);
+			FileInfo cookiesFileInfo = new(_cookiesfileFullName);
 			if (!Directory.Exists(cookiesFileInfo.DirectoryName))
 			{
 				Directory.CreateDirectory(cookiesFileInfo.DirectoryName);
 			}
 
-			using FileStream fileStream = new FileStream(_cookiesfileFullName, FileMode.Create);
-			BinaryFormatter formatter = new BinaryFormatter();
+			using FileStream fileStream = new(_cookiesfileFullName, FileMode.Create);
+			BinaryFormatter formatter = new();
 
 			try
 			{
@@ -338,8 +334,8 @@ namespace Downloader
 
 			if (File.Exists(_cookiesfileFullName))
 			{
-				using FileStream fileStream = new FileStream(_cookiesfileFullName, FileMode.Open);
-				BinaryFormatter formatter = new BinaryFormatter();
+				using FileStream fileStream = new(_cookiesfileFullName, FileMode.Open);
+				BinaryFormatter formatter = new();
 
 				try
 				{

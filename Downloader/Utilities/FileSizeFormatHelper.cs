@@ -14,7 +14,7 @@ namespace Downloader.Utilities
 		/// <returns>Форматированное представление размера файла.</returns>
 		public static string FormatByteSize(long fileSize)
 		{
-			StringBuilder buffer = new StringBuilder(11);
+			StringBuilder buffer = new(11);
 			NativeMethods.StrFormatByteSize(fileSize, buffer, buffer.Capacity);
 			return buffer.ToString();
 		}
