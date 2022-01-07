@@ -1,13 +1,12 @@
 ﻿using System;
 
-namespace Downloader.Infrastructure
+namespace Downloader.Infrastructure;
+
+[Serializable]
+public sealed class PageParseException : ApplicationException
 {
-    [Serializable]
-    public sealed class PageParseException : ApplicationException
-    {
-        public PageParseException(string message, string className = null) : base(message)
-        {
-            Data["ClassName"] = className;
-        }
-    }
+	public PageParseException(string message, string className = null) : base(message)
+	{
+		Data["ClassName"] = className;
+	}
 }

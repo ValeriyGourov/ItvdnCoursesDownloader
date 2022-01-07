@@ -1,31 +1,31 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>net5.0</TargetFramework>
-    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
-    <AssemblyTitle>Консольное приложение для загрузки курсов ITVDN</AssemblyTitle>
-    <Company>Валерий Гуров</Company>
-    <Product>Загрузка курсов ITVDN</Product>
-    <Description>Загружает видеофайлы курсов ITVDN</Description>
-    <Copyright>Валерий Гуров © 2020</Copyright>
-    <AssemblyVersion>1.2.0.0</AssemblyVersion>
-    <FileVersion>1.2.0.0</FileVersion>
-    <ApplicationIcon>ItvdnLogo.ico</ApplicationIcon>
-    <UserSecretsId>c44aa08a-aaa4-4098-93a1-dd0323572b92</UserSecretsId>
-    <Version>1.2.0</Version>
-    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+	<OutputType>Exe</OutputType>
+	<TargetFramework>net6.0</TargetFramework>
+	<AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+	<AssemblyTitle>Консольное приложение для загрузки курсов ITVDN</AssemblyTitle>
+	<Company>Валерий Гуров</Company>
+	<Product>Загрузка курсов ITVDN</Product>
+	<Description>Загружает видеофайлы курсов ITVDN</Description>
+	<Copyright>Валерий Гуров © 2020</Copyright>
+	<AssemblyVersion>1.3.0.0</AssemblyVersion>
+	<FileVersion>1.3.0.0</FileVersion>
+	<ApplicationIcon>ItvdnLogo.ico</ApplicationIcon>
+	<UserSecretsId>c44aa08a-aaa4-4098-93a1-dd0323572b92</UserSecretsId>
+	<Version>1.3.0</Version>
+	<EnableNETAnalyzers>true</EnableNETAnalyzers>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Downloader\Downloader.csproj" />
+	<ProjectReference Include="..\Downloader\Downloader.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="ItvdnLogo.ico" />
+	<Content Include="ItvdnLogo.ico" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.Configuration" Version="5.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="5.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.CommandLine" Version="5.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="5.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" Version="5.0.0" />
+	<PackageReference Include="Microsoft.Extensions.Configuration" Version="6.0.0" />
+	<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="6.0.0" />
+	<PackageReference Include="Microsoft.Extensions.Configuration.CommandLine" Version="6.0.0" />
+	<PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="6.0.0" />
+	<PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" Version="6.0.0" />
   </ItemGroup>
 </Project>

@@ -3,101 +3,100 @@ using System.IO;
 
 using Downloader.Utilities;
 
-namespace Downloader.Models
+namespace Downloader.Models;
+
+public sealed class DownloadFile
 {
-	public sealed class DownloadFile
+	private string _title;
+	private long _size;
+	private int _progressPercentage;
+	private DownloadFileStatus _status = DownloadFileStatus.Wait;
+	private Exception _error;
+
+	public Uri Uri { get; }
+
+	public string Title
 	{
-		private string _title;
-		private long _size;
-		private int _progressPercentage;
-		private DownloadFileStatus _status = DownloadFileStatus.Wait;
-		private Exception _error;
+		get => _title;
+		set => _title = string.IsNullOrWhiteSpace(value) ? "Укажите имя файла" : value;
+	}
 
-		public Uri Uri { get; }
+	public string Extension { get; }
+	public string TargetFileFullName => Path.Combine(SavePath, $"{Title}{Extension}");
+	public string SavePath { get; set; }
 
-		public string Title
+	public int ProgressPercentage
+	{
+		get => _progressPercentage;
+		internal set
 		{
-			get => _title;
-			set => _title = string.IsNullOrWhiteSpace(value) ? "Укажите имя файла" : value;
-		}
+			bool progressPercentageChanged = _progressPercentage != value;
 
-		public string Extension { get; }
-		public string TargetFileFullName => Path.Combine(SavePath, $"{Title}{Extension}");
-		public string SavePath { get; set; }
+			_progressPercentage = value;
 
-		public int ProgressPercentage
-		{
-			get => _progressPercentage;
-			internal set
+			if (ProgressPercentage == 100)
 			{
-				bool progressPercentageChanged = _progressPercentage != value;
-
-				_progressPercentage = value;
-
-				if (ProgressPercentage == 100)
-				{
-					Status = DownloadFileStatus.Completed;
-				}
-				else if (Status != DownloadFileStatus.InProgress)
-				{
-					Status = DownloadFileStatus.InProgress;
-				}
-				else if (progressPercentageChanged)
-				{
-					ProgressPercentageChanged?.Invoke(this, EventArgs.Empty);
-				}
+				Status = DownloadFileStatus.Completed;
+			}
+			else if (Status != DownloadFileStatus.InProgress)
+			{
+				Status = DownloadFileStatus.InProgress;
+			}
+			else if (progressPercentageChanged)
+			{
+				ProgressPercentageChanged?.Invoke(this, EventArgs.Empty);
 			}
 		}
+	}
 
-		public long Size
+	public long Size
+	{
+		get => _size;
+		internal set
 		{
-			get => _size;
-			internal set
+			_size = value;
+			FormattedSize = FileSizeFormatHelper.FormatByteSize(_size);
+			SizeChanged?.Invoke(this, EventArgs.Empty);
+		}
+	}
+
+	/// <summary>
+	/// Форматированное представление размера файла.
+	/// </summary>
+	public string FormattedSize { get; private set; }
+
+	public Exception Error
+	{
+		get => _error;
+		internal set
+		{
+			_error = value;
+			if (_error != null)
 			{
-				_size = value;
-				FormattedSize = FileSizeFormatHelper.FormatByteSize(_size);
-				SizeChanged?.Invoke(this, EventArgs.Empty);
+				Status = DownloadFileStatus.Error;
 			}
 		}
+	}
 
-		/// <summary>
-		/// Форматированное представление размера файла.
-		/// </summary>
-		public string FormattedSize { get; private set; }
-
-		public Exception Error
+	public DownloadFileStatus Status
+	{
+		get => _status;
+		private set
 		{
-			get => _error;
-			internal set
-			{
-				_error = value;
-				if (_error != null)
-				{
-					Status = DownloadFileStatus.Error;
-				}
-			}
+			_status = value;
+			StatusChanged?.Invoke(this, EventArgs.Empty);
 		}
+	}
 
-		public DownloadFileStatus Status
-		{
-			get => _status;
-			private set
-			{
-				_status = value;
-				StatusChanged?.Invoke(this, EventArgs.Empty);
-			}
-		}
+	public event EventHandler ProgressPercentageChanged;
+	public event EventHandler SizeChanged;
+	public event EventHandler StatusChanged;
 
-		public event EventHandler ProgressPercentageChanged;
-		public event EventHandler SizeChanged;
-		public event EventHandler StatusChanged;
+	internal DownloadFile(Uri uri)
+	{
+		Uri = uri;
 
-		internal DownloadFile(Uri uri)
-		{
-			Uri = uri;
-
-			FileInfo fileInfo = new(uri.AbsolutePath);
-			Extension = fileInfo.Extension;
-		}
+		FileInfo fileInfo = new(uri.AbsolutePath);
+		Extension = fileInfo.Extension;
 	}
 }
