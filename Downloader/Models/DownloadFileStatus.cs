@@ -1,10 +1,9 @@
-﻿namespace Downloader.Models
+﻿namespace Downloader.Models;
+
+public enum DownloadFileStatus
 {
-    public enum DownloadFileStatus
-    {
-        Wait,
-        InProgress,
-        Error,
-        Completed
-    }
+	Wait,
+	InProgress,
+	Error,
+	Completed
 }
