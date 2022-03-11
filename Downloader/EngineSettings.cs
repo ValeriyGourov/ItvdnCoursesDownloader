@@ -33,12 +33,6 @@ public sealed class EngineSettings : IValidatableObject
 	[Required]
 	public string SavePath { get; set; }
 
-	/// <summary>
-	/// Путь к папке с файлами веб-драйверов для Selenium WebDriver.
-	/// </summary>
-	[Required]
-	public string WebDriversPath { get; set; }
-
 	/// <inheritdoc/>
 	public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
 	{
@@ -55,13 +49,6 @@ public sealed class EngineSettings : IValidatableObject
 			errors.Add(new ValidationResult(
 				$"Папка '{SavePath}', указанная для загрузки файлов, не существует.",
 				new[] { nameof(SavePath) }));
-		}
-
-		if (!Directory.Exists(WebDriversPath))
-		{
-			errors.Add(new ValidationResult(
-				$"Указанная папка веб-драйверов '{WebDriversPath}' не существует.",
-				new[] { nameof(WebDriversPath) }));
 		}
 
 		return errors;

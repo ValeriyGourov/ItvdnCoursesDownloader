@@ -17,5 +17,6 @@
 	<PackageReference Include="AngleSharp.Io" Version="0.16.0" />
 	<PackageReference Include="Jint" Version="2.11.58" />
 	<PackageReference Include="Selenium.WebDriver" Version="4.1.0" />
+	<PackageReference Include="WebDriverManager" Version="2.12.3" />
   </ItemGroup>
 </Project>
