@@ -14,9 +14,8 @@ using Downloader.Infrastructure;
 using Downloader.Models;
 using Downloader.Pages;
 
-using Microsoft.Edge.SeleniumTools;
-
 using OpenQA.Selenium;
+using OpenQA.Selenium.Edge;
 
 namespace Downloader;
 
@@ -272,14 +271,9 @@ public sealed class Engine
 	/// <returns>Новый экземпляр Selenium WebDriver.</returns>
 	private IWebDriver CreateWebDriver()
 	{
-		EdgeOptions options = new()
-		{
-			UseChromium = true
-		};
-
 		try
 		{
-			return new EdgeDriver(_settings.WebDriversPath, options);
+			return new EdgeDriver(_settings.WebDriversPath);
 		}
 		catch
 		//catch (DriverServiceNotFoundException exception)
