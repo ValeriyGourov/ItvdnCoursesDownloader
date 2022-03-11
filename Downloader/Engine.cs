@@ -17,6 +17,9 @@ using Downloader.Pages;
 using OpenQA.Selenium;
 using OpenQA.Selenium.Edge;
 
+using WebDriverManager;
+using WebDriverManager.DriverConfigs.Impl;
+
 namespace Downloader;
 
 /// <summary>
@@ -269,11 +272,15 @@ public sealed class Engine
 	/// Создаёт новый экземпляр Selenium WebDriver с требуемыми настройками.
 	/// </summary>
 	/// <returns>Новый экземпляр Selenium WebDriver.</returns>
-	private IWebDriver CreateWebDriver()
+	private static IWebDriver CreateWebDriver()
 	{
+		Console.WriteLine("Установка последней версии WebDriver...");
+		new DriverManager().SetUpDriver(new EdgeConfig());
+
+		Console.WriteLine("Создание экземпляра WebDriver...");
 		try
 		{
-			return new EdgeDriver(_settings.WebDriversPath);
+			return new EdgeDriver();
 		}
 		catch
 		//catch (DriverServiceNotFoundException exception)
